@@ -26,6 +26,17 @@ Third-Party Audience API (Mock Server)
 - 第三方 API 确实返回了数据（状态是 200 OK）
 - 但是我们的代码认为数据是空的
 
+## 🛠️ Setup (First Time Only)
+
+本挑战依赖 **Playwright**，如果你是第一次运行，需要安装浏览器二进制文件：
+
+```bash
+# 进入 worker-service 目录安装浏览器
+cd apps/worker-service
+npx playwright install chromium
+cd ../..
+```
+
 ## 🎯 Your Task
 
 ### 1. **复现 Bug** (5-10分钟)
