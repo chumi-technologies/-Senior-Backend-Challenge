@@ -15,6 +15,7 @@
         "start:all": "concurrently \"pnpm start:legacy\" \"pnpm start:worker\"",
         "replay": "tsx scripts/replay-event.ts",
         "process:chaos": "tsx scripts/process-chaos.ts",
+        "simulate:audience-bug": "tsx apps/worker-service/src/audience-integration/run-audience-test.ts",
         "test": "pnpm -r test",
         "lint": "pnpm -r lint"
     },

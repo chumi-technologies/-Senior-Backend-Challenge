@@ -202,7 +202,64 @@ pnpm run process:chaos
 
 ---
 
-## 第四部分：系统设计与权衡 (开放性问题)
+## 第四部分：第三方集成调试 - "Audience 数据未返回" (约40分钟)
+
+### 问题描述
+
+你的团队从第三方 API 集成 influencer 的受众数据（audience demographics）。这个集成使用 **Playwright** 来处理需要浏览器环境的 API 调用。
+
+**系统架构**：
+```
+AudienceService (业务逻辑层)
+    ↓
+FacadeAudienceService (API 包装层 + Playwright)
+    ↓
+Third-Party Audience API
+```
+
+**Bug 现象**：
+- ✅ 大部分 influencers 的 audience 数据正常返回
+- ❌ **特定的 `mediaId`（如 `12345`）总是返回 `null`**
+- 📊 日志显示：`[FacadeService] ⚠️ Audience data is NULL - why??`
+- 🤔 但第三方 API 确实返回了 200 OK 和数据
+
+这个 bug **在生产环境隐藏了数月**才被发现，因为只影响 ~5% 的数据。
+
+### 要求
+
+1. **复现 Bug**
+   ```bash
+   pnpm simulate:audience-bug
+   ```
+   你应该看到某个 `mediaId` 返回 null
+
+2. **定位问题根因**
+   - 追踪完整调用链：`run-audience-test.ts` → `audience.service.ts` → `facade-audience.service.ts` → `mock-audience-api.ts`
+   - 查看日志中的 `Raw response` 输出
+   - 对比成功和失败的响应，找出数据结构差异
+
+3. **修复代码**
+   - 使 `facade-audience.service.ts` 能处理**两种不同的 API 响应格式**（新格式 vs 老格式）
+   - 添加适当的错误处理和日志
+   - 考虑使用 TypeScript 类型保护
+
+4. **验证修复**
+   - 所有测试数据都应成功返回（`Errors: 0`）
+
+### 学习目标
+
+这个挑战模拟真实的第三方集成问题：
+- **数据格式不稳定**：第三方 API 可能返回不同版本的响应
+- **调试链路长**：需要追踪多层嵌套调用
+- **Playwright 实战**：理解浏览器上下文管理
+- **防御性编程**：写能应对"脏数据"的健壮代码
+
+详细说明请查看: [`docs/CHALLENGE_AUDIENCE_BUG.md`](docs/CHALLENGE_AUDIENCE_BUG.md)
+
+---
+
+## 第五部分：系统设计与权衡 (开放性问题)
+
 
 > **场景背景**：
 > 恭喜，你的修复上线后系统稳定了。但现在销售团队签下了一个 Enterprise 大客户。
@@ -231,10 +288,11 @@ pnpm run process:chaos
 
 | 维度 | 分数 | 评分标准 |
 |------|------|----------|
-| Capture & Replay 工具 | 25分 | 脚本可用，能在本地秒级复现 |
-| 架构治理 | 30分 | 正确识别双写问题，重构后无竞态 |
-| 数据容错 | 25分 | 脏数据不导致 Crash，有结构化日志 |
-| 代码质量 | 20分 | TypeScript 规范、清晰的注释、合理的抽象 |
+| Part 1: Capture & Replay 工具 | 20分 | 脚本可用，能在本地秒级复现 |
+| Part 2: 架构治理 | 25分 | 正确识别双写问题，重构后无竞态 |
+| Part 3: 数据容错 | 20分 | 脏数据不导致 Crash，有结构化日志 |
+| Part 4: Audience Bug 调试 | 20分 | 正确定位并修复数据格式兼容问题 |
+| 代码质量 | 15分 | TypeScript 规范、清晰的注释、合理的抽象 |
 
 ## 🎯 加分项
 
