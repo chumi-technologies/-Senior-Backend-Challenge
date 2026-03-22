@@ -81,7 +81,10 @@ curl http://localhost:3000/api/analysis/{jobId}
 
 ## 任务概述
 
-你需要在 **2-3 小时** 内完成以下三个任务。请在 `solutions/` 目录下记录你的分析和解决方案。
+你需要在 **3-4 小时** 内完成以下任务。请在 `solutions/` 目录下记录你的分析和解决方案。
+
+> **🤖 提示：** 本挑战高度契合现代 AI 工程师的工作模式（AI Vibe Coding）。我们**强烈建议**你使用 Cursor, ChatGPT, Cline 等 AI 工具辅助完成。
+> **⚠️ 必须遵守：如果你使用了 AI，请务必导出或复制你与 AI 的完整对话记录，并以 `solutions/ai-chat-log.md`（或类似格式）连同代码一起提交。我们将通过这些记录评估你的 Prompt 逻辑、系统分析能力以及和 AI 的协作编码能力。**
 
 ---
 
@@ -325,6 +328,7 @@ senior-backend-challenge/
 │   └── chaos-data-samples.json  # 脏数据样本
 ├── failed-records/              # 失败记录目录
 ├── solutions/                   # 你的解决方案文档
+│   ├── ai-chat-log.md           # ⚠️ 必需：你与 AI 工具的完整对话记录
 │   ├── part1-replay-tool.md
 │   ├── part2-analysis.md
 │   └── part3-observability.md
@@ -337,7 +341,8 @@ senior-backend-challenge/
 ## ❓ 常见问题
 
 **Q: 可以使用 AI 工具吗？**
-A: 可以。但我们更关注的是你的**分析过程**和**架构决策**，而不是代码生成速度。请在 `solutions/` 中解释你的思考过程。
+A: **非常鼓励！** 但请注意，这是一个考察你如何与 AI 协作（AI Vibe Coding）的测试。我们更关注你的 **Prompt 设计、Bug 排查思路以及架构决策**，而不是单纯的代码生成速度。
+**⚠️ 强制要求：如果你使用了 AI 工具（强烈建议使用），请务必将完整的对话记录（包括你的提示词和 AI 的回复）导出或复制，并保存为 `solutions/ai-chat-log.md` 与代码一并提交。如果你不提供完整的 AI 对话记录，我们将无法评估你真正的工程排查能力。**
 
 **Q: 时间不够怎么办？**
 A: 优先完成第一部分和第二部分。第三部分可以简化为口头描述方案。
