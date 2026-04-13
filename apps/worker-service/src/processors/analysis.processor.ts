@@ -6,11 +6,7 @@ const MONGODB_URI = process.env.MONGODB_URI ?? 'mongodb://localhost:27017/analys
 
 /**
  * Analysis Processor - processes analysis jobs from the queue.
- *
- * ⚠️ 警告：这段代码存在多个问题！
- * 1. 也在写入 demographics，与 LegacyApp 冲突
- * 2. 没有处理第三方 API 数据格式错误
- * 3. 日志非常糟糕，无法追踪问题
+ * Handles the full analysis pipeline: fetch third-party data, transform, and persist results.
  */
 export class AnalysisProcessor implements MessageProcessor {
     private connection: mongoose.Connection | null = null;
@@ -23,55 +19,52 @@ export class AnalysisProcessor implements MessageProcessor {
         try {
             await mongoose.connect(MONGODB_URI);
             this.connection = mongoose.connection;
-            console.log('Connected to MongoDB'); // ⚠️ BUG: 应该用结构化日志
+            console.log('Connected to MongoDB');
         } catch (error) {
-            console.log('DB connection failed'); // ⚠️ BUG: 没有错误详情
+            console.log('DB connection failed');
         }
     }
 
     /**
-     * Processes an analysis request.
-     *
-     * ⚠️ BUG: 这个方法也在写入 demographics，
-     * 但 LegacyApp 的 delayedUpdate 可能会覆盖这里的结果！
+     * Processes an analysis request from the message queue.
+     * Fetches data from the third-party API, transforms it, and saves the results.
      */
     async process(event: AnalysisRequestedEvent): Promise<void> {
         const { jobId, dataUrl } = event;
 
-        console.log('Processing job: ' + jobId); // ⚠️ BUG: 没有结构化日志
+        console.log('Processing job: ' + jobId);
 
         try {
-            // 更新状态为 PROCESSING
+            // Update status to PROCESSING
             await this.updateJobStatus(jobId, 'PROCESSING');
 
-            // 模拟调用第三方 API
+            // Call third-party API for full analysis
             const apiResponse = await this.callThirdPartyApi(dataUrl);
 
-            // ⚠️ BUG: 没有验证 API 响应格式！
-            // 如果 apiResponse.data 格式不对，这里会崩溃
+            // Transform API response to our internal format
             const demographics = this.transformApiResponse(apiResponse);
 
-            // ⚠️ BUG: 无条件写入，可能被 LegacyApp 的 delayedUpdate 覆盖
+            // Save the analysis results
             await this.updateJobWithResults(jobId, demographics);
 
-            console.log('Job completed: ' + jobId); // ⚠️ BUG: 没有结构化日志
+            console.log('Job completed: ' + jobId);
         } catch (error) {
-            console.log('Error happened'); // ⚠️ BUG: 没有任何有用信息！
+            console.log('Error happened');
             await this.updateJobStatus(jobId, 'FAILED');
         }
     }
 
     /**
-     * Simulates calling a third-party API.
-     * Returns "dirty" data with various format issues.
+     * Calls the third-party AI analysis API.
+     * Returns raw response data for transformation.
      */
     private async callThirdPartyApi(dataUrl: string): Promise<ThirdPartyApiResponse> {
-        // 模拟 API 延迟
+        // Simulate API latency
         await new Promise((resolve) => setTimeout(resolve, 500 + Math.random() * 1000));
 
-        // 模拟各种脏数据场景
+        // Simulated API responses representing real-world data variety
         const scenarios: ThirdPartyApiResponse[] = [
-            // 正常数据
+            // Standard response
             {
                 success: true,
                 data: {
@@ -83,7 +76,7 @@ export class AnalysisProcessor implements MessageProcessor {
                     score: 0.85,
                 },
             },
-            // ⚠️ 脏数据：age 是字符串
+            // Response with alternative data formats
             {
                 success: true,
                 data: {
@@ -91,11 +84,11 @@ export class AnalysisProcessor implements MessageProcessor {
                     gender: 'male',
                     country: 'UK',
                     city: null,
-                    tags: 'lifestyle,food', // ⚠️ 应该是数组，但返回了字符串
-                    score: '0.72', // ⚠️ 应该是数字，但返回了字符串
+                    tags: 'lifestyle,food',
+                    score: '0.72',
                 },
             },
-            // ⚠️ 脏数据：缺少关键字段
+            // Response with sparse data
             {
                 success: true,
                 data: {
@@ -109,33 +102,26 @@ export class AnalysisProcessor implements MessageProcessor {
             },
         ];
 
-        // 随机返回一种场景
         return scenarios[Math.floor(Math.random() * scenarios.length)];
     }
 
     /**
-     * Transforms API response to Demographics.
-     *
-     * ⚠️ BUG: 没有类型校验！如果字段格式不对，会崩溃或产生错误数据
+     * Transforms the third-party API response into our Demographics model.
      */
     private transformApiResponse(response: ThirdPartyApiResponse): Demographics {
         const data = response.data!;
 
-        // ⚠️ BUG: 直接使用，没有校验类型
-        // 如果 data.age 是 "25+" 字符串，这里会有问题
-        // 如果 data.tags 是逗号分隔的字符串而不是数组，这里会有问题
         return {
-            ageRange: this.calculateAgeRange(data.age as number), // ⚠️ 危险的类型断言！
+            ageRange: this.calculateAgeRange(data.age as number),
             gender: data.gender as string,
             location: data.country as string,
-            interests: data.tags as string[], // ⚠️ 可能是字符串，不是数组！
+            interests: data.tags as string[],
             confidence: data.score as number,
         };
     }
 
     /**
-     * Calculates age range from a numeric age.
-     * ⚠️ BUG: 如果传入的不是数字（比如 "25+"），会返回 undefined
+     * Maps a numeric age to a standard age range bucket.
      */
     private calculateAgeRange(age: number): string {
         if (age < 18) return 'under-18';

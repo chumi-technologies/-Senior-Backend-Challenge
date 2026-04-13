@@ -6,7 +6,7 @@ const MONGODB_URI = process.env.MONGODB_URI ?? 'mongodb://localhost:27017/analys
 
 /**
  * Database service for MongoDB operations.
- * ⚠️ 简化版实现，生产环境请使用 NestJS Mongoose 模块
+ * Uses raw Mongoose connection for simplicity.
  */
 @Injectable()
 export class DatabaseService implements OnModuleInit {

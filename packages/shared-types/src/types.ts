@@ -10,7 +10,7 @@ export type NotificationChannel = 'EMAIL' | 'SMS' | 'PUSH';
 
 /**
  * Demographics data structure.
- * ⚠️ 注意：第三方 API 返回的数据格式不稳定，字段可能缺失或类型错误
+ * Represents audience demographic analysis results.
  */
 export interface Demographics {
     ageRange?: string;
@@ -33,7 +33,6 @@ export interface AnalysisJob {
     updatedAt: string;
     completedAt?: string;
     error?: string;
-    /** 用于乐观锁的版本号 */
     version?: number;
 }
 
@@ -46,7 +45,7 @@ export interface CreateAnalysisRequest {
 }
 
 /**
- * Analysis Requested Event - 发送到消息队列的事件.
+ * Analysis Requested Event - published to the message queue.
  */
 export interface AnalysisRequestedEvent {
     eventType: 'AnalysisRequested';
@@ -54,13 +53,12 @@ export interface AnalysisRequestedEvent {
     userId: string;
     dataUrl: string;
     timestamp: string;
-    /** 用于全链路追踪的 Trace ID */
     traceId?: string;
 }
 
 /**
  * Third-party API raw response.
- * ⚠️ 这是从第三方 API 获取的原始数据，格式不可靠！
+ * Format may vary between API versions and providers.
  */
 export interface ThirdPartyApiResponse {
     success: boolean;

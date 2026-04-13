@@ -1,10 +1,8 @@
 /**
- * 模拟第三方 Audience API 服务器
- * 
- * 场景：这是一个需要认证的 Upfluence 风格 API
- * - 需要 Bearer Token
- * - 返回多层嵌套的 JSON
- * - 某些情况下数据结构会变化
+ * Mock Third-Party Audience API Server
+ *
+ * Simulates an authenticated audience analytics API (similar to Upfluence/HypeAuditor).
+ * Requires Bearer Token authentication and returns nested JSON responses.
  */
 
 import http from 'http';
@@ -33,26 +31,26 @@ interface AudienceResponse {
 const server = http.createServer((req, res) => {
     const authHeader = req.headers['authorization'];
 
-    // 检查认证
+    // Verify authentication
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         res.writeHead(401, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Unauthorized' }));
         return;
     }
 
-    // 模拟延迟
+    // Simulate network latency
     setTimeout(() => {
         if (req.url?.includes('/api/v1/audience')) {
             const urlParams = new URL(req.url, `http://localhost:${PORT}`);
             const mediaType = urlParams.searchParams.get('media_type');
             const mediaId = urlParams.searchParams.get('media_id');
 
-            // 🐛 BUG 场景 1: 某些 media_id 返回的结构不一样
+            // Some media IDs use the legacy API response format
+            // (retained for backward compatibility with older data pipeline versions)
             if (mediaId === '12345') {
-                // 这是一个"老"的数据结构（已弃用），但API偶尔还会返回
                 const legacyResponse = {
                     status: 'success',
-                    audience_data: {  // 注意：不是 data.audience，而是 audience_data 
+                    audience_data: {
                         demographics: {
                             gender: [
                                 { label: 'male', value: 0.45 },
@@ -66,7 +64,7 @@ const server = http.createServer((req, res) => {
                 return;
             }
 
-            // 正常响应
+            // Standard response format
             const response: AudienceResponse = {
                 status: 'success',
                 data: {
@@ -103,7 +101,7 @@ const server = http.createServer((req, res) => {
             res.writeHead(404, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: 'Not found' }));
         }
-    }, 300); // 300ms 延迟模拟网络
+    }, 300);
 });
 
 export function startMockAudienceServer(): Promise<void> {

@@ -38,7 +38,7 @@ export class QueuePoller {
     }
 
     /**
-     * Main polling loop.
+     * Main polling loop - reads JSON files from the queue directory and processes them.
      */
     private async pollLoop(): Promise<void> {
         while (this.isRunning) {
@@ -60,12 +60,11 @@ export class QueuePoller {
                         fs.unlinkSync(filepath);
                         console.log(`✅ Message processed and deleted: ${file}`);
                     } catch (error) {
-                        console.log('Error processing message'); // ⚠️ BUG: 没有有用的错误信息
-                        // Move to failed? For now, just skip
+                        console.log('Error processing message');
                     }
                 }
             } catch (error) {
-                console.log('Error in poll loop'); // ⚠️ BUG: 糟糕的日志
+                console.log('Error in poll loop');
             }
 
             await this.sleep(POLL_INTERVAL_MS);

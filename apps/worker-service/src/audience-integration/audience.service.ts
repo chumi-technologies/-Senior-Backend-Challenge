@@ -1,13 +1,8 @@
 /**
- * Audience Service - 业务逻辑层
- * 
- * 模拟真实的 audience.service.ts:
- * - 数据映射
- * - 缓存检查
- * - 验证逻辑
- * 
- * 🎯 挑战目标：
- * 候选人需要追踪整个调用链，找到为什么某些 mediaId 返回 null
+ * Audience Service - business logic layer for audience demographics.
+ *
+ * Orchestrates data fetching, caching, validation, and mapping
+ * of influencer audience data from the facade layer.
  */
 
 import { FacadeAudienceService } from './facade-audience.service';
@@ -29,9 +24,8 @@ export class AudienceService {
     }
 
     /**
-     * 获取受众数据
-     * 
-     * 🐛 这里也可能有问题：数据映射逻辑依赖于 facade 返回的格式
+     * Fetches audience demographic data for a single influencer.
+     * Results are cached to avoid redundant API calls.
      */
     async fetchAudienceData(
         platform: 'instagram' | 'tiktok',
@@ -40,7 +34,7 @@ export class AudienceService {
     ): Promise<UnifiedAudienceData | null> {
         console.log(`[AudienceService] Fetching audience for ${platform}:${mediaId}`);
 
-        // 检查缓存
+        // Check cache first
         const cacheKey = `${platform}:${mediaId}`;
         if (!options.forceRefresh && this.cache.has(cacheKey)) {
             console.log('[AudienceService] Using cached data');
@@ -48,21 +42,20 @@ export class AudienceService {
         }
 
         try {
-            // 从 Facade 层获取原始数据
+            // Fetch raw data from the facade layer
             const rawData = await this.facadeService.getAudienceV1ByPlaywright(
                 platform,
                 mediaId,
             );
 
             if (!rawData) {
-                // 🚨 候选人会在这里看到问题
                 console.error('[AudienceService] ❌ No data returned from facade layer');
                 console.error('[AudienceService] mediaId:', mediaId);
                 console.error('[AudienceService] platform:', platform);
                 return null;
             }
 
-            // 映射到统一格式
+            // Map to unified internal format
             const unifiedData: UnifiedAudienceData = {
                 platform,
                 mediaId,
@@ -71,13 +64,13 @@ export class AudienceService {
                 geography: rawData.geography,
             };
 
-            // 验证数据
+            // Validate data completeness
             if (!this.validateAudienceData(unifiedData)) {
                 console.error('[AudienceService] Data validation failed');
                 return null;
             }
 
-            // 缓存
+            // Cache the result
             this.cache.set(cacheKey, unifiedData);
 
             console.log('[AudienceService] ✅ Successfully fetched and mapped audience data');
@@ -90,7 +83,7 @@ export class AudienceService {
     }
 
     /**
-     * 批量获取 - 模拟真实的批量场景
+     * Batch fetch audience data for multiple influencers.
      */
     async batchFetchAudienceData(
         influencerData: Array<{ instagram_id?: string; tiktok_id?: string }>,
@@ -122,7 +115,6 @@ export class AudienceService {
     }
 
     private validateAudienceData(data: UnifiedAudienceData): boolean {
-        // 简单验证
         return !!(data.gender || data.age || data.geography);
     }
 

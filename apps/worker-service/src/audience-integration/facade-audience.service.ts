@@ -1,12 +1,8 @@
 /**
- * Facade Service - 包装第三方 Audience API 调用
- * 
- * 模拟真实的 facade-upfluence.service.ts 逻辑：
- * - 使用 Playwright browser context
- * - Auth management
- * - 错误处理
- * 
- * 🐛 核心 BUG: 数据提取逻辑对不同的响应格式处理不当
+ * Facade Service - wraps third-party Audience API calls.
+ *
+ * Handles Playwright browser context management, authentication,
+ * and data extraction from the audience analytics provider.
  */
 
 import { chromium, Browser, BrowserContext } from 'playwright';
@@ -21,11 +17,11 @@ export class FacadeAudienceService {
     }
 
     /**
-     * 获取 Audience 数据
-     * 
+     * Fetches audience demographic data via Playwright browser context.
+     *
      * @param mediaType - instagram | tiktok
-     * @param mediaId - 媒体ID
-     * @param context - 可选的共享浏览器上下文
+     * @param mediaId - The media/influencer ID to query
+     * @param context - Optional shared browser context for batch operations
      */
     async getAudienceV1ByPlaywright(
         mediaType: 'instagram' | 'tiktok',
@@ -35,7 +31,7 @@ export class FacadeAudienceService {
         const url = `http://localhost:3001/api/v1/audience?media_type=${mediaType}&media_id=${mediaId}`;
 
         try {
-            // 获取认证
+            // Acquire authentication credentials from the pool
             const auth = await this.authPool.getNextAuth();
             const token = await this.authPool.getToken(auth);
 
@@ -45,14 +41,14 @@ export class FacadeAudienceService {
             let browser: Browser | null = null;
             let shouldCloseBrowser = false;
 
-            // 如果没有提供 context，创建新的
+            // Create a new browser context if none was provided
             if (!context) {
                 browser = await chromium.launch({ headless: true });
                 context = await browser.newContext();
                 shouldCloseBrowser = true;
             }
 
-            // 发起请求
+            // Make the API request through the browser context
             const response = await context.request.get(url, {
                 headers: {
                     'authorization': `Bearer ${token}`,
@@ -62,10 +58,7 @@ export class FacadeAudienceService {
 
             const audienceData = await response.json();
 
-            // 🐛 BUG核心：数据提取逻辑
-            // 预期路径: data.audience.gender
-            // 但是对于 mediaId=12345，结构是 audience_data.demographics.gender
-            // 这里只处理了"新"格式，没有处理"老"格式
+            // Validate API response status
             if (audienceData.status !== 'success') {
                 console.error('[FacadeService] API returned non-success status');
                 return null;
@@ -73,15 +66,10 @@ export class FacadeAudienceService {
 
             console.log('[FacadeService] Raw response:', JSON.stringify(audienceData).substring(0, 200));
 
-            /*
-             * 🐛 这里是问题所在！
-             * 如果 API 返回的是老格式（audience_data），这里就会返回 undefined
-             * 因为代码只检查了新格式（data.audience）
-             */
+            // Extract audience demographics from response
             const extracted = audienceData.data?.audience;
 
             if (!extracted) {
-                // 这是候选人会看到的日志
                 console.error('[FacadeService] ⚠️ Audience data is NULL - why??');
                 console.error('[FacadeService] Available keys:', Object.keys(audienceData));
             }
@@ -99,13 +87,11 @@ export class FacadeAudienceService {
     }
 
     /**
-     * 批量获取 - 模拟真实场景中的并发问题
+     * Batch fetch audience data for multiple media IDs.
+     * Uses Promise.all for concurrent requests.
      */
     async batchGetAudience(requests: Array<{ mediaType: 'instagram' | 'tiktok'; mediaId: string }>) {
         console.log(`[FacadeService] Batch fetching ${requests.length} audience datasets`);
-
-        // 🐛 BUG场景: 并发调用时可能重用同一个 auth
-        // 真实场景中应该共享 browser context 来减少开销
 
         const results = await Promise.all(
             requests.map(req =>

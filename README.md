@@ -1,36 +1,65 @@
 # 🔧 Senior Backend Engineer Challenge
 
-> **重要说明**: 本项目是一个高级后端工程师技术面试挑战。与传统的"从零搭建"不同，本挑战模拟的是一个**真实的遗留系统修复场景**，用于评估候选人对复杂分布式系统的调试、重构和架构治理能力。
+> **重要说明**: 本项目模拟真实的遗留系统修复场景。你将接手一个"能跑但问题很多"的数据处理系统，通过排查、修复、重构来证明你的系统级工程能力。
+
+## 🤖 关于 AI 工具的使用
+
+**本挑战要求你使用 AI 工具（Cursor, Claude, ChatGPT 等）辅助完成。**
+
+我们不考察"你是否能脱离 AI 手写代码"。**我们考察的是你和 AI 组成的 team 如何解决复杂工程问题。**
+
+具体来说，我们通过你的 AI 对话记录评估以下三项核心能力：
+
+| 核心能力 | 具体表现 |
+|----------|---------|
+| **复杂系统切分** | 你能否将多服务交互拆解为独立的数据流片段，即使面对"魔法般"的 AI 输出，也能找到逻辑线索 |
+| **领域语义直觉** | 你能否快速从字段名推断业务含义？看到 `confidence: 0.3` 和 `confidence: 0.85` 时，你对"数据可信度"的理解是否立即浮现？ |
+| **AI 协作深度** | 你向 AI 提出的问题质量——是在做"系统认知"还是在做"搜索引擎式复制粘贴"？ |
+
+> ⚠️ **强制要求**：请将完整的 AI 对话记录保存为 `solutions/ai-chat-log.md` 并随代码一起提交。**对话记录是评分的核心依据之一**——如果缺失，我们将无法评估你真正的工程思维。
+
+---
 
 ## 📋 项目背景
 
-你加入了一个创业公司，接手了一个"能跑但问题很多"的数据处理系统。该系统负责接收用户数据分析请求，调用第三方 AI 服务进行处理，并返回结果。
+你加入了一个做 influencer marketing 数据分析的创业公司。系统负责接收品牌方的数据分析请求，通过第三方 AI/数据服务对 influencer 受众进行画像分析，并将报告返回给用户。
 
-**你的前任留下了以下问题：**
-
-1. 🔥 **数据不一致**：客服收到反馈，用户刚看到的分析结果，刷新后有时会诡异地变回旧数据或者不完整。这似乎是高并发下触发的隐蔽微服务通信 Bug。
-2. 🐛 **调试困难**：每次修改代码都要部署到云端才能测试，反馈周期 5 分钟+
-3. 💥 **莫名其妙的崩溃**：第三方 API 响应包含极差的数据结构和脏数据，导致整个批处理微服务脆不可言，甚至直接 Crash 落库失败。
-4. 📉 **无法排查**：日志里只有 `Error happened`，无法定位是哪条数据出问题
+你的前任工程师已经离职了。以下是你上班第一天的情况。
 
 ## 🏗️ 系统架构
 
 ```
-┌─────────────────┐         SQS Queue          ┌─────────────────┐
-│   LegacyApp     │ ─────────────────────────► │  WorkerService  │
-│   (REST API)    │    AnalysisRequested       │  (SQS Consumer) │
-│   Port: 3000    │                            │                 │
-└────────┬────────┘                            └────────┬────────┘
-         │                                              │
-         │  DB Ops                                      │  DB Ops
-         │                                              │
-         ▼                                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                         MongoDB                                  │
-│                     (analysis_results)                           │
-│                                                                  │
-│   ❓ 系统架构中隐藏着导致数据状态不一致的隐患，等待你去发现与修复        │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────┐      Message Queue (SQS)      ┌─────────────────┐
+│   LegacyApp     │ ─────────────────────────────► │  WorkerService  │
+│   (REST API)    │    AnalysisRequested          │  (SQS Consumer) │
+│   Port: 3000    │                               │                 │
+└────────┬────────┘                               └────────┬────────┘
+         │                                                 │
+         │  Read / Write                                   │  Read / Write
+         │                                                 │
+         ▼                                                 ▼
+┌───────────────────────────────────────────────────────────────────┐
+│                         MongoDB                                    │
+│                     (analysis_jobs collection)                     │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+**核心数据模型 `AnalysisJob`**：
+```typescript
+{
+  jobId: string;          // 唯一任务标识
+  userId: string;         // 发起分析的用户
+  dataUrl: string;        // 待分析的数据源 URL
+  status: AnalysisStatus; // 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
+  demographics?: {        // 受众画像分析结果
+    ageRange?: string;    //   年龄段
+    gender?: string;      //   性别
+    location?: string;    //   地区
+    confidence?: number;  //   结果置信度 (0~1)
+  };
+  createdAt: string;
+  updatedAt: string;
+}
 ```
 
 ## 🚀 快速开始
@@ -79,26 +108,25 @@ curl http://localhost:3000/api/analysis/{jobId}
 
 # 📝 面试任务
 
-## 任务概述
+你需要在 **3-4 小时** 内完成以下任务。
 
-你需要在 **3-4 小时** 内完成以下任务。请在 `solutions/` 目录下记录你的分析和解决方案。
+## 🔑 核心交付物：系统认知报告
 
-> **🤖 提示：** 本挑战高度契合现代 AI 工程师的工作模式（AI Vibe Coding）。我们**强烈建议**你使用 Cursor, ChatGPT, Cline 等 AI 工具辅助完成。
-> **⚠️ 必须遵守：如果你使用了 AI，请务必导出或复制你与 AI 的完整对话记录，并以 `solutions/ai-chat-log.md`（或类似格式）连同代码一起提交。我们将通过这些记录评估你的 Prompt 逻辑、系统分析能力以及和 AI 的协作编码能力。**
+**在动手写代码之前**，每个任务都需要你先提交一份"系统认知报告"到 `solutions/` 目录。报告需要包含：
+
+1. **数据流向图**：画出问题场景中数据从产生到最终状态的完整流转路径
+2. **字段语义标注**：说明关键字段在业务场景中意味着什么
+3. **根因假设**：基于你的分析，在写任何代码之前提出根因假设
+
+> ⚡ **这不是走过场。系统认知报告的质量在总评分中权重最高。** 一份好的报告应该在你还没写任何代码之前，就已经精确定位到了问题的本质。
 
 ---
 
-## 第一部分：工具链建设 - "Capture & Replay" (约30分钟)
+## Part 1: 工具链建设 — Capture & Replay (约30分钟)
 
-### 问题描述
+### 背景
 
-目前团队的调试流程非常痛苦：
-1. 发现线上 Bug
-2. 修改代码
-3. 部署到云端（等待 5 分钟）
-4. 触发任务，等待执行
-5. 查看 CloudWatch 日志
-6. 发现猜错了，回到步骤 2
+团队目前的调试流程非常痛苦：每次修改代码都要部署到云端才能测试，反馈周期 5 分钟+。
 
 **你的任务是建立一个 "Payload Capture & Replay" 机制，让开发者可以在本地秒级复现问题。**
 
@@ -115,110 +143,136 @@ curl http://localhost:3000/api/analysis/{jobId}
 ### 验收标准
 
 ```bash
-# 1. 开启捕获模式，触发一个任务
+# 1. 开启捕获模式
 CAPTURE_MODE=true pnpm run start:worker
 
-# 2. 应该在 debug-payloads/ 下生成 JSON 文件
+# 2. debug-payloads/ 下应生成 JSON 文件
 
-# 3. 使用 replay 脚本本地调试
+# 3. 使用 replay 本地调试
 pnpm run replay -- --file=debug-payloads/job-xxx.json
-# 应该能看到 Handler 的完整执行日志，无需启动 SQS
+# 应看到 Handler 的完整执行日志，无需启动队列
 ```
 
 ---
 
-## 第二部分：排障与 TDD - "诊断幽灵数据跳变Bug" (约45分钟)
+## Part 2: 诊断与修复 — 客服工单 #4521 (约45分钟)
 
-### 问题描述
+### 📨 以下是你上班第一天收到的 Slack 消息
 
-客服一直反馈有用户的报告数据在生成后第一秒看是准的，但刷新后偶尔会跳转回初始或者不完整的旧状态。
-作为资深工程师，你的直觉告诉你这绝对不只是一个简单的逻辑错乱，而是一个发生在 `LegacyApp` 和 `WorkerService` 实体微服务之间的系统层面**异步竞态条件黑洞**。
+**#customer-support 频道：**
+```
+@channel 用户再次反馈报告数据异常
 
-### 要求（硬性 TDD 流程）
+工单 #4521
+用户 ID: user-8827
+时间: 2026-04-10 14:32 UTC
 
-1. **强制先写测试再改代码**
-   - 在 `apps/legacy-app/test/bug-repro.spec.ts` 中编写一个自动化并发测试或者单元测试框架。
-   - 构造并发触发场景，以证明现有代码必定会产生数据覆盖/跳变（此时你的测试必须能够报错并复现 Bug）。
-2. **分析问题根因**
-   - 在 `solutions/part2-analysis.md` 中解释这个 Bug 的成因，画出准确的时序图（T0, T1, T2）证明你理解了分布式的并发缺陷。
-3. **架构重构**
-   - 指导 AI 使用正确的设计模式（例如：单一数据信源、乐观锁版本控制等）修复底层代码。
-   - 解决掉被隐式耦合的数据计算和落库职责。
-4. **验证解决**
-   - 你的 TDD 测试用例转绿；服务状态流转应稳固 `PENDING` → `PROCESSING` → `COMPLETED`，无论怎样并发时序乱序，数据都不再发生跳动篡改。
+现象：
+用户在 14:32:01 查看了分析报告（jobId: a3f8e-...），页面显示：
+  gender: female, location: US, confidence: 0.85
 
-### 验收标准
+14:32:03 刷新页面后，数据变成了：
+  gender: male, location: CA, confidence: 0.3
 
-- 有一份运行可复现出该并发 Bug 的**红灯并发试探测试脚本**并在重构后转绿。
-- 收敛边界，一个服务剥离掉不属于它的过界权责。
-- 引入稳健的防并发加锁或事务策略防止脏写。
+用户非常困惑，质疑我们数据的可信度。
+这是本周第三个类似投诉了。
+```
 
----
-
-## 第三部分：可观测性与容错 - "Dirty Data Defense" (约30分钟)
-
-### 问题描述
-
-查看 `debug-payloads/chaos-data-samples.json`，这是从生产环境捕获的真实第三方 API 响应样本。
-
-你会发现数据非常"脏"：
-- 有些 `age` 是数字 `25`，有些是字符串 `"25+"`，有些是 `null`
-- 有些记录缺少必要字段
-- 有些 `email` 格式不合法
-
-**目前的代码遇到这些数据会直接 Crash，导致整个批处理失败。**
+**#engineering 频道：**
+```
+@team 关于数据跳变的问题——这个月已经有 12 个工单了。
+每次现象都一样：刚生成的报告过几秒就变回一个低质量版本。
+有人能看看吗？日志里只有 "Error happened"，完全没法定位。
+```
 
 ### 要求
 
-1. **引入 Runtime Validation**
-   - 使用 **Zod** 或 **class-validator** 在 Worker 中校验第三方数据
-   - 不合法的数据应该**被记录并跳过**，而不是 Crash 整个流程
+1. **系统认知报告** (`solutions/part2-analysis.md`)
+   - 追踪 `AnalysisJob` 从创建到最终状态的完整数据生命周期
+   - 标注哪些服务、在什么时间点、对同一条记录做了什么操作
+   - 解释为什么用户先看到 `confidence: 0.85` 后看到 `confidence: 0.3`——精确到代码行和时间窗口
 
-2. **改进日志**
-   - 替换所有 `console.log` / `console.error`
-   - 使用结构化日志：`{ event: 'ValidationFailed', jobId, field: 'age', rawValue: '25+' }`
-   - 确保每条日志都包含 `traceId`（从 LegacyApp 透传）
+2. **TDD 验证** (`apps/legacy-app/test/bug-repro.spec.ts`)
+   - 先写测试证明 Bug 存在（Red）
+   - 再修复代码让测试通过（Green）
 
-3. **实现 Dead Letter 逻辑**
-   - 处理失败的记录应该被保存到 `failed-records/` 目录
-   - 记录失败原因和原始 Payload
+3. **代码修复**
+   - 修复根因，确保 `PENDING → PROCESSING → COMPLETED` 的状态流转稳固
+   - 无论并发时序如何乱序，数据都不再跳变
+
+### 验收标准
+
+- 系统认知报告中有精确到毫秒的数据生命周期时序图
+- TDD 测试先红后绿
+- 修复后数据一致性可证明
+
+---
+
+## Part 3: 生产事故 — 凌晨三点的电话 (约30分钟)
+
+### 📨 事故报告
+
+```
+事故时间: 2026-04-09 03:14 UTC
+影响范围: Worker 批处理服务全部崩溃，排队中的分析任务积压
+恢复方式: 手动重启 Worker 后恢复，但相同任务重新触发时再次崩溃
+
+初步排查:
+  - Worker 日志最后一条: "Error happened"（无其他上下文）
+  - Crash 似乎与某些第三方 API 响应数据有关
+  - 已将事发时段捕获到的第三方 API 原始响应保存在 debug-payloads/chaos-data-samples.json
+```
+
+查看 `debug-payloads/chaos-data-samples.json`——这是从第三方 API 捕获的真实响应。你需要理解每条记录中的每个字段在 influencer marketing 领域的业务含义，才能判断"什么样的数据是脏的"以及"为什么它会导致 Crash"。
+
+### 要求
+
+1. **数据质量分析** (`solutions/part3-observability.md`)
+   - 逐条审查 `chaos-data-samples.json`
+   - 对每条记录标注: 合法 / 不合法，以及判断依据
+   - 你的判断依据应该体现你对 influencer demographics 数据的业务理解
+
+2. **Runtime Validation**
+   - 在 Worker 中引入运行时数据校验
+   - 不合法的数据应被记录并跳过，不应 Crash 整个流程
+
+3. **结构化日志**
+   - 替换所有 `console.log('Error happened')` 式的日志
+   - 每条日志包含: `jobId`, `traceId`, 事件类型, 上下文信息
+
+4. **Dead Letter 逻辑**
+   - 失败记录保存到 `failed-records/`，包含失败原因和原始数据
 
 ### 验收标准
 
 ```bash
-# 处理 chaos-data-samples.json 中的数据
 pnpm run process:chaos
 
-# 应该输出类似：
-# ✅ Processed: 95 records
-# ⚠️ Skipped (validation failed): 5 records
+# ✅ Processed: X records
+# ⚠️ Skipped (validation failed): Y records
 # 📁 Failed records saved to: failed-records/batch-xxx.json
 ```
 
 ---
 
-## 第四部分：第三方集成调试 - "Audience 数据未返回" (约40分钟)
+## Part 4: Audience 数据集成 — 5% 数据缺失 (约40分钟)
 
-### 问题描述
+### 📨 数据分析团队的报告
 
-你的团队从第三方 API 集成 influencer 的受众数据（audience demographics）。这个集成使用 **Playwright** 来处理需要浏览器环境的 API 调用。
-
-**系统架构**：
 ```
-AudienceService (业务逻辑层)
-    ↓
-FacadeAudienceService (API 包装层 + Playwright)
-    ↓
-Third-Party Audience API
+@engineering 我们在做月度数据质量审计时发现一个问题：
+
+受众画像 (audience demographics) 数据有大约 5% 的缺失率。
+
+具体表现:
+- 绝大部分 influencer 的受众数据正常采集
+- 但某些特定的 mediaId 总是返回空值
+- 我们已经确认第三方 API 对这些 mediaId 返回了 200 OK
+- 但我们系统里存的是 null
+
+受影响的 mediaId 样本: 12345, 54321, ...
+这个问题已经存在好几个月了，因为只影响少量数据一直没人注意到。
 ```
-
-**Bug 现象**：
-- ✅ 大部分 influencers 的 audience 数据正常返回
-- ❌ **特定的 `mediaId`（如 `12345`）总是返回 `null`**
-- 📊 日志显示：`[FacadeService] ⚠️ Audience data is NULL - why??`
-- 🤔 但第三方 API 确实返回了 200 OK 和数据
-
-这个 bug **在生产环境隐藏了数月**才被发现，因为只影响 ~5% 的数据。
 
 ### 要求
 
@@ -226,75 +280,71 @@ Third-Party Audience API
    ```bash
    pnpm simulate:audience-bug
    ```
-   你应该看到某个 `mediaId` 返回 null
 
-2. **定位问题根因**
-   - 追踪完整调用链：`run-audience-test.ts` → `audience.service.ts` → `facade-audience.service.ts` → `mock-audience-api.ts`
-   - 查看日志中的 `Raw response` 输出
-   - 对比成功和失败的响应，找出数据结构差异
+2. **调用链路追踪** (`solutions/part4-audience-trace.md`)
+   - 追踪完整调用链: `run-audience-test.ts` → `audience.service.ts` → `facade-audience.service.ts` → `mock-audience-api.ts`
+   - 对比成功请求和失败请求在每一层的数据差异
+   - 精确标注数据在哪一层、哪一行代码"丢失"的
 
-3. **修复与重构代码（开放式系统扩展）**
-   - 使 `facade-audience.service.ts` 优雅地兼容**两种不同嵌套结构的 API 响应格式**以完成 Bug 修复。
-   - **进阶架构要求：** PM 丢给团队一个并发紧急要求，下周起产品端立刻要增加支持 3 个新社媒平台的受众抓取：`youtube`, `twitter`, `linkedin`。若维持现有的硬编码思路去写，代码很快沦为面条式的 `if/else` 屎山。
-   - **重构挑战：** 请在此刻**引导你的 AI**应用**策略模式 (Strategy Pattern) 或者定义如 `IAudienceProvider` 服务定位/工厂模式**，大幅降低各平台抓取间的强耦合，构建高扩展性的注册门面。(请在 AI Chat Log 中附上你是如何向 AI Describe 设计原则的证明)。
+3. **修复与验证**
+   - 修复数据丢失问题
+   - 验证所有测试 mediaId 都能成功返回 (`Errors: 0`)
 
-4. **验证修复**
-   - 所有测试数据都应成功返回（`Errors: 0`）
+4. **扩展性设计**（进阶）
+   - PM 通知你下周要增加 `youtube`, `twitter`, `linkedin` 三个新平台的受众抓取
+   - 以当前代码结构，如何避免沦为 `if/else` 堆积？请在代码中体现你的设计思路
 
-### 学习目标
+### 验收标准
 
-这个挑战模拟真实的第三方集成问题：
-- **数据格式不稳定**：第三方 API 可能返回不同版本的响应
-- **调试链路长**：需要追踪多层嵌套调用
-- **Playwright 实战**：理解浏览器上下文管理
-- **防御性编程**：写能应对"脏数据"的健壮代码
-
-详细说明请查看: [`docs/CHALLENGE_AUDIENCE_BUG.md`](docs/CHALLENGE_AUDIENCE_BUG.md)
+- 调用链路文档精确到代码行号和数据结构差异
+- 所有测试 mediaId 数据成功返回 (`Errors: 0`)
+- 新平台接入无需修改核心逻辑
 
 ---
 
-## 第五部分：系统设计与权衡 (开放性问题)
-
+## Part 5: 系统设计与权衡 (开放性问题)
 
 > **场景背景**：
-> 恭喜，你的修复上线后系统稳定了。但现在销售团队签下了一个 Enterprise 大客户。
-> 
+> 你的修复上线后系统稳定了。但销售团队签下了一个 Enterprise 大客户。
+>
 > **新需求**：
 > 客户每周一早上 9:00 会上传一个 **10GB 的 CSV 文件**（约 500 万行记录）到 S3，要求在 **2 小时内** 完成所有分析并生成报告。
-> 
+>
 > **现有限制**：
 > 1. 目前的 Worker 是单实例轮询，处理速度约为 10 条/秒。
-> 2. 团队目前只有 **你 1 个后端人力**（其他人都在赶前端 Feature）。
+> 2. 团队目前只有 **你 1 个后端人力**。
 > 3. 只有 **2 周** 时间上线。
-> 
+>
 > **CTO 的提议**：
 > CTO 听说 Rust 很快，建议你用 Rust 重写 Worker，或者上 Kubernetes 做自动扩缩容。
-> 
-> **你的任务**：
-> 在 `solutions/part4-tradeoffs.md` 中回答以下问题：
-> 1. **架构方案**：你会如何修改架构来满足 500万条/2小时 的吞吐量？请画出架构简图。
-> 2. **技术选型**：你会接受 CTO 用 Rust 重写的建议吗？为什么？如果拒绝，你的替代方案是什么？
-> 3. **妥协与牺牲**：在只有 2 周和 1 个人的情况下，为了达成目标，你会主动牺牲掉哪些"最佳实践"或功能？
-> 4. **调试灾难预案**：当 500 万条数据中有 1% 失败（5万条错误）时，你的日志系统会爆炸。你如何设计监控和报错机制，既能让研发排查问题，又不至于被报警淹没？
+>
+> 在 `solutions/part5-tradeoffs.md` 中回答：
+> 1. **架构方案**：你会如何修改架构来满足 500万条/2小时 的吞吐量？请画出架构图。
+> 2. **技术选型**：你会接受 CTO 用 Rust 重写的建议吗？为什么？替代方案？
+> 3. **妥协与牺牲**：2 周 1 个人，你会主动放弃哪些"最佳实践"？
+> 4. **调试灾难预案**：500 万条中 1% 失败（5万条错误），如何设计监控让研发能排查而不被报警淹没？
 
 ---
 
 ## 📊 评分标准
 
-| 维度 | 分数 | 评分标准 |
-|------|------|----------|
-| Part 1: Capture & Replay 工具 | 20分 | 脚本可用，能在本地秒级复现 |
-| Part 2: 架构治理 | 25分 | 正确识别双写问题，重构后无竞态 |
-| Part 3: 数据容错 | 20分 | 脏数据不导致 Crash，有结构化日志 |
-| Part 4: Audience Bug 调试 | 20分 | 正确定位并修复数据格式兼容问题 |
-| 代码质量 | 15分 | TypeScript 规范、清晰的注释、合理的抽象 |
+| 维度 | 权重 | 评估方式 |
+|------|------|---------|
+| **系统认知 & 数据流向分析** | 40% | 系统认知报告的深度和准确性。数据生命周期图是否精确？字段语义理解是否正确？根因假设是否命中核心？ |
+| **解决方案质量** | 25% | 修复是否正确解决根因（而非只治症状）？是否健壮？ |
+| **AI 协作质量** | 20% | 从 AI Chat Log 评估：你如何向 AI 拆解问题？如何验证 AI 的输出？ |
+| **代码质量** | 15% | TypeScript 规范、合理的抽象、清晰的命名 |
 
-## 🎯 加分项
+### 🔍 AI Chat Log 评估细则
 
-- 使用 **Zod** 而不是 try-catch 进行类型校验
-- 实现 **Trace ID** 全链路透传
-- 添加单元测试覆盖核心逻辑
-- 在 `solutions/` 中提供清晰的架构图和解释
+| 行为模式 | 评价 |
+|---------|------|
+| 向 AI 分段提问："先帮我梳理这个服务的数据流向"、"这个字段在业务上意味着什么？" | ✅ 体现了系统切分能力 |
+| 让 AI 给出方案后追问："这样改会不会影响另一个服务的写入？" | ✅ 体现了全局意识 |
+| 发现 AI 的方案有隐患后主动修正或引导 AI 调整 | ✅ 体现了深度理解 |
+| 把整段代码或整个文件粘贴给 AI 说"帮我找 bug" | ⚠️ 缺乏切分能力 |
+| AI 说什么改什么，不做验证 | ❌ 缺乏判断力 |
+| 只关注让测试通过，不关注根因和系统影响 | ❌ 缺乏工程思维 |
 
 ---
 
@@ -303,29 +353,33 @@ Third-Party Audience API
 ```
 senior-backend-challenge/
 ├── apps/
-│   ├── legacy-app/              # REST API 服务 (模拟 chumi_server)
-│   │   └── src/
-│   │       ├── analysis/        # 分析模块 (⚠️ 有问题的代码)
-│   │       └── shared/          # 共享服务
-│   └── worker-service/          # 消息处理 Worker (模拟 collaboration-api)
+│   ├── legacy-app/              # REST API 服务
+│   │   ├── src/
+│   │   │   ├── analysis/        # 分析模块
+│   │   │   └── shared/          # 数据库 & 消息队列
+│   │   └── test/
+│   │       └── bug-repro.spec.ts  # Part 2 TDD 测试
+│   └── worker-service/          # 消息处理 Worker
 │       └── src/
-│           ├── processors/      # 消息处理器 (⚠️ 有问题的代码)
-│           └── middleware/      # 中间件 (待实现)
+│           ├── processors/      # 消息处理器
+│           ├── middleware/      # 中间件 (Part 1)
+│           └── audience-integration/  # 受众数据集成 (Part 4)
 ├── packages/
 │   └── shared-types/            # 共享类型定义
 ├── scripts/
-│   ├── replay-event.ts          # 待实现: Replay 调试脚本
-│   └── process-chaos.ts         # 处理脏数据的脚本
+│   ├── replay-event.ts          # Part 1: Replay 脚本
+│   └── process-chaos.ts         # Part 3: 脏数据处理
 ├── debug-payloads/              # Payload 捕获目录
 │   └── chaos-data-samples.json  # 脏数据样本
 ├── failed-records/              # 失败记录目录
-├── solutions/                   # 你的解决方案文档
-│   ├── ai-chat-log.md           # ⚠️ 必需：你与 AI 工具的完整对话记录
-│   ├── part1-replay-tool.md
-│   ├── part2-analysis.md
-│   └── part3-observability.md
-├── docker-compose.yml           # MongoDB 配置
-└── package.json                 # Monorepo 根配置
+├── solutions/                   # ⬅️ 你的交付物
+│   ├── ai-chat-log.md           # ⚠️ 必需：AI 完整对话记录
+│   ├── part2-analysis.md        # 数据流向 & 根因分析
+│   ├── part3-observability.md   # 数据质量分析
+│   ├── part4-audience-trace.md  # 调用链路追踪
+│   └── part5-tradeoffs.md       # 系统设计方案
+├── docker-compose.yml
+└── package.json
 ```
 
 ---
@@ -333,11 +387,10 @@ senior-backend-challenge/
 ## ❓ 常见问题
 
 **Q: 可以使用 AI 工具吗？**
-A: **非常鼓励！** 但请注意，这是一个考察你如何与 AI 协作（AI Vibe Coding）的测试。我们更关注你的 **Prompt 设计、Bug 排查思路以及架构决策**，而不是单纯的代码生成速度。
-**⚠️ 强制要求：如果你使用了 AI 工具（强烈建议使用），请务必将完整的对话记录（包括你的提示词和 AI 的回复）导出或复制，并保存为 `solutions/ai-chat-log.md` 与代码一并提交。如果你不提供完整的 AI 对话记录，我们将无法评估你真正的工程排查能力。**
+A: **不只是可以，是要求你必须使用。** 这个挑战考的是你和 AI 如何协作解决问题。但请注意——我们更关注你的 **问题切分方式、领域理解深度以及对 AI 输出的判断力**，而不是代码生成速度。
 
 **Q: 时间不够怎么办？**
-A: 优先完成第一部分和第二部分。第三部分可以简化为口头描述方案。
+A: 优先完成 Part 1 和 Part 2。但无论做到哪一步，**每个已完成部分的系统认知报告质量是第一优先级**。
 
 **Q: 需要真的连接 AWS 吗？**
 A: 不需要。本项目使用本地 MongoDB 和模拟的消息队列，所有测试都可以在本地完成。

@@ -36,3 +36,10 @@ Thumbs.db
 
 # Test coverage
 coverage/
+
+# Local queue (runtime data)
+local-queue/
+
+# Internal interviewer docs (DO NOT commit to candidate repo)
+docs/INTERNAL_*
+tmp_candidate_review/
