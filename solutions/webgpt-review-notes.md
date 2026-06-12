@@ -17,11 +17,12 @@ This repository is a backend interview challenge. It simulates an influencer mar
 - `debug-payloads/`: captured payloads and replay/debug samples.
 - `solutions/`: written analysis reports required by the challenge.
 
-The current branch contains three logical changes:
+The current branch contains four logical changes:
 
 1. Startup dependency fix: add missing `@senior-challenge/shared-types` workspace dependencies to the apps.
 2. Part 2 consistency fix: prevent delayed quick demographics from overwriting Worker results.
 3. Part 1 Capture & Replay: capture Worker input payloads and replay them locally.
+4. Part 3 chaos data processing: validate and classify third-party dirty data with Zod plus business rules.
 
 ## Part 1: Capture & Replay
 
@@ -215,6 +216,103 @@ Potential review questions:
 - Should there be another test proving delayed update still works while status is `PENDING`?
 - Should tests cover `PROCESSING` as well as `COMPLETED`?
 
+## Part 3: Chaos Data Validation and Observability
+
+### Problem Understanding
+
+The incident report says Worker batch processing crashed on third-party API response data, and logs only contained generic messages like `Error happened`.
+
+The raw incident samples are in:
+
+```text
+debug-payloads/chaos-data-samples.json
+```
+
+The existing Worker code relies on TypeScript assertions such as `data.age as number` and `data.tags as string[]`. These assertions do not convert or validate runtime JSON, so dirty third-party records can either crash later processing or silently produce incorrect demographics.
+
+### Design Decision
+
+We classify records into four categories instead of simple valid/invalid:
+
+```text
+valid       - direct use
+normalized  - format differs but can be losslessly converted
+degraded    - core demographics usable, auxiliary field dropped/warned
+rejected    - core fields missing/unparseable or business value impossible
+```
+
+Expected result for the provided samples:
+
+```text
+Valid: 4
+Normalized: 0
+Degraded: 2
+Rejected: 6
+Processed: 6
+Skipped: 6
+```
+
+Important business decision:
+
+- `record-002` is degraded, not normalized. Its `tags` and `engagementScore` can be losslessly normalized, but `age: "25+"` is an open-ended range. The Worker stores canonical `ageRange: "25-34"` using the lower-bound bucket and logs a warning because this loses information.
+- `record-012` is degraded, not rejected. Its `engagementScore: "high"` is not a reliable numeric score, but age/gender/country/tags/email are usable. We keep the core demographics and drop the score rather than inventing a fake numeric value.
+
+### Validation Strategy
+
+We use Zod for the runtime schema boundary:
+
+```ts
+const RawChaosRecordSchema = z.object({
+  id: z.string(),
+  age: z.union([z.number(), z.string()]).nullable().optional(),
+  gender: z.string().nullable().optional(),
+  country: z.string().nullable().optional(),
+  city: z.string().nullable().optional(),
+  tags: z.union([z.array(z.string()), z.string()]).nullable().optional(),
+  engagementScore: z.union([z.number(), z.string()]).nullable().optional(),
+  email: z.string().nullable().optional(),
+});
+```
+
+Then custom business rules normalize or reject records:
+
+- age number -> age range
+- age strings must resolve to canonical buckets (`under-18`, `18-24`, `25-34`, `35-44`, `45-54`, `55+`)
+- open-ended age strings like `25+` -> lower-bound canonical bucket with degraded warning
+- tags comma string -> array
+- numeric score string -> number
+- qualitative score like `high` -> degraded warning
+- impossible core values such as `age: -5` -> rejected
+
+Rejected records are written to `failed-records/batch-*.json` with original raw data and field-level reasons.
+
+The same boundary is also applied to the real Worker path now:
+
+- `AnalysisProcessor.transformApiResponse` validates the third-party response with Zod.
+- It normalizes age/tags/score before producing `Demographics`.
+- It throws `ThirdPartyValidationError` with field-level issues for bad core demographics.
+- It logs `analysis_response_degraded` for lossy age mapping and degraded auxiliary fields such as empty `tags` or non-numeric/out-of-range `score`.
+- The `process()` catch branch logs a structured `analysis_job_failed` event including `jobId` and `traceId`, then marks the job `FAILED`.
+- The Worker writes a production-path dead-letter file to `failed-records/worker-{jobId}-{timestamp}.json`, including the original queue event, third-party response, and validation issues.
+
+The chaos script also validates each record individually. A malformed record shape becomes one rejected row in `failed-records/` instead of aborting the whole batch.
+
+Known residual risk:
+
+- `AnalysisRequestedEvent.dataUrl` can be large. The Worker dead-letter file intentionally stores the original queue event for replay/debugging, so an oversized `dataUrl` could bloat `failed-records/worker-*.json` or create future logging/PII risk if this format is forwarded to centralized observability. This branch documents the risk but does not implement redaction/truncation because the Part 3 scope is focused on third-party response validation, structured logs, and dead-letter capture.
+- A production hardening pass could store only `dataUrl` length/hash/scheme/host, or move large payloads to object storage and keep a reference in the failed record.
+
+Potential review questions:
+
+- Is email too strict as a reject condition, or should invalid email become degraded?
+- Should empty tags reject, degrade, or only warn?
+- Should qualitative engagement labels such as `high` be mapped to a score or left undefined?
+- Should Zod transforms be used more heavily, or is keeping business normalization outside the schema clearer?
+- Should the validation helpers move into Worker runtime code rather than remaining in `scripts/process-chaos.ts` for the challenge?
+- Is the duplicated validation logic between Worker and `process-chaos.ts` acceptable for this challenge, or should it be extracted into a shared Worker utility?
+- Is writing one worker dead-letter JSON file per failed job sufficient, or should it use an append-only batch format?
+- Should Worker dead-letter files redact or truncate large `dataUrl` values now, or is documenting the risk enough for this challenge?
+
 ## Validation Already Run
 
 Commands run locally:
@@ -224,6 +322,7 @@ pnpm --filter legacy-app test -- --runInBand
 pnpm --filter legacy-app build
 pnpm --filter worker-service build
 pnpm run replay -- --file=debug-payloads/analysis-requested-naming-example-20260410-143201000Z.json
+pnpm run process:chaos
 ```
 
 Capture/replay demonstration:
@@ -242,6 +341,7 @@ Runtime changes:
 - `scripts/replay-event.ts`
 - `apps/legacy-app/src/analysis/analysis.service.ts`
 - `apps/legacy-app/src/shared/database/database.service.ts`
+- `scripts/process-chaos.ts`
 
 Tests and config:
 
@@ -254,7 +354,9 @@ Docs and samples:
 
 - `solutions/part1-replay-tool.md`
 - `solutions/part2-analysis.md`
+- `solutions/part3-observability.md`
 - `debug-payloads/analysis-requested-naming-example-20260410-143201000Z.json`
+- `debug-payloads/chaos-data-samples.json`
 - `.gitignore`
 
 ## Requested Review From WebGPT
@@ -268,6 +370,9 @@ Please review the implementation for:
 5. Whether the Part 2 consistency fix is robust enough.
 6. Whether tests adequately prove the bug and the fix.
 7. Any risks caused by replay mutating MongoDB.
-8. Any simpler or more idiomatic TypeScript/NestJS approach that would better fit this codebase.
+8. Whether the Part 3 valid/normalized/degraded/rejected classification is reasonable.
+9. Whether the Zod + business-rule split is appropriate.
+10. Whether the documented `dataUrl` size/redaction risk should be implemented now.
+11. Any simpler or more idiomatic TypeScript/NestJS approach that would better fit this codebase.
 
 Please avoid broad rewrites unless they are necessary. Prefer minimal, challenge-appropriate changes with clear validation.
