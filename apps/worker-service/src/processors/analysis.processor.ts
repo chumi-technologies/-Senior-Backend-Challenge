@@ -10,9 +10,10 @@ const MONGODB_URI = process.env.MONGODB_URI ?? 'mongodb://localhost:27017/analys
  */
 export class AnalysisProcessor implements MessageProcessor {
     private connection: mongoose.Connection | null = null;
+    private readonly ready: Promise<void>;
 
     constructor() {
-        this.initializeDatabase();
+        this.ready = this.initializeDatabase();
     }
 
     private async initializeDatabase(): Promise<void> {
@@ -30,6 +31,8 @@ export class AnalysisProcessor implements MessageProcessor {
      * Fetches data from the third-party API, transforms it, and saves the results.
      */
     async process(event: AnalysisRequestedEvent): Promise<void> {
+        await this.ready;
+
         const { jobId, dataUrl } = event;
 
         console.log('Processing job: ' + jobId);

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-04-10T14:32:01.000Z",
+  "source": "local-queue",
+  "messageId": "naming-example",
+  "messageFile": "naming-example-1744295521000.json",
+  "rawBody": "{\n  \"eventType\": \"AnalysisRequested\",\n  \"jobId\": \"naming-example\",\n  \"userId\": \"user-8827\",\n  \"dataUrl\": \"https://example.com/naming-example.json\",\n  \"timestamp\": \"2026-04-10T14:32:00.000Z\",\n  \"traceId\": \"trace-naming-example\"\n}",
+  "payload": {
+    "eventType": "AnalysisRequested",
+    "jobId": "naming-example",
+    "userId": "user-8827",
+    "dataUrl": "https://example.com/naming-example.json",
+    "timestamp": "2026-04-10T14:32:00.000Z",
+    "traceId": "trace-naming-example"
+  }
+}

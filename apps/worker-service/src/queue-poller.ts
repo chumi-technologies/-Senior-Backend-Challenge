@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import type { AnalysisRequestedEvent } from '@senior-challenge/shared-types';
+import { captureMessage } from './middleware/capture.middleware';
 import type { MessageProcessor } from './processors/processor.interface';
 
 const QUEUE_DIR = path.join(process.cwd(), 'local-queue');
@@ -53,6 +54,13 @@ export class QueuePoller {
                         const event: AnalysisRequestedEvent = JSON.parse(content);
 
                         console.log(`📨 Processing message: ${event.jobId}`);
+
+                        await captureMessage(event, {
+                            source: 'local-queue',
+                            messageId: event.jobId,
+                            messageFile: file,
+                            rawBody: content,
+                        });
 
                         await this.processor.process(event);
 
