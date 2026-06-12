@@ -6,7 +6,6 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import mongoose from 'mongoose';
 import type { AnalysisRequestedEvent } from '@senior-challenge/shared-types';
 import { AnalysisProcessor } from '../apps/worker-service/src/processors/analysis.processor';
 
@@ -30,9 +29,17 @@ async function main(): Promise<void> {
     console.log(`Replay jobId: ${event.jobId}`);
 
     const processor = new AnalysisProcessor();
-    await processor.process(event);
-
-    console.log(`Replay completed for jobId: ${event.jobId}`);
+    try {
+        await processor.process(event, {
+            allowFailedRetry: true,
+            failOnProcessingError: true,
+            failOnSkipped: true,
+            source: 'replay',
+        });
+        console.log(`Replay completed for jobId: ${event.jobId}`);
+    } finally {
+        await processor.close();
+    }
 }
 
 function getFileArgument(args: string[]): string {
@@ -81,7 +88,4 @@ main()
     .catch((error) => {
         console.error('Replay failed:', (error as Error).message);
         process.exitCode = 1;
-    })
-    .finally(async () => {
-        await mongoose.disconnect().catch(() => undefined);
     });

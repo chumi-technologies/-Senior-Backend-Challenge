@@ -80,6 +80,8 @@ pnpm run replay -- --file=debug-payloads/job-xxx.json
 
 这样 replay 不需要启动 LegacyApp，也不需要重新写入 `local-queue/`。
 
+Replay 仍然会走真实 Worker 持久化路径，因此 MongoDB 中需要存在对应的 job，并且状态需要允许 Worker 开始处理。脚本会允许 `FAILED -> PROCESSING`，方便重放失败任务；如果 job 不存在、已经是 `COMPLETED`，状态不允许重放，或 Worker 处理过程中把 job 标记为 `FAILED`，脚本会失败而不是静默成功。
+
 ## 2. 核心代码
 
 ### capture.middleware.ts
@@ -149,7 +151,12 @@ const parsed = JSON.parse(fs.readFileSync(filepath, 'utf-8')) as ReplayInput;
 const event = extractEvent(parsed);
 
 const processor = new AnalysisProcessor();
-await processor.process(event);
+await processor.process(event, {
+    allowFailedRetry: true,
+    failOnProcessingError: true,
+    failOnSkipped: true,
+    source: 'replay',
+});
 ```
 
 Replay 同时支持 envelope 和裸 payload：
@@ -189,7 +196,9 @@ async process(event: AnalysisRequestedEvent): Promise<void> {
 
 ### 路径问题
 
-项目中的本地队列依赖 `process.cwd()`，从不同目录启动时可能指向不同的 `local-queue/`。Capture 文件不应受这个影响，所以 middleware 会向上查找 `pnpm-workspace.yaml`，把文件稳定写到仓库根目录的 `debug-payloads/`。
+项目中的本地队列原本依赖 `process.cwd()`，从不同目录启动时可能指向不同的 `local-queue/`。例如用 `pnpm --filter legacy-app start:prod` 和 `pnpm --filter worker-service start` 启动时，两个进程的 cwd 分别在各自 app 目录，容易导致 LegacyApp 写入 `apps/legacy-app/local-queue/`，Worker 却轮询 `apps/worker-service/local-queue/`。
+
+解决方式：队列读写和 Capture 文件都向上查找 `pnpm-workspace.yaml`，把本地队列稳定指向仓库根目录的 `local-queue/`，把 capture 文件稳定写到仓库根目录的 `debug-payloads/`。
 
 ### Replay 文件格式兼容
 
@@ -229,7 +238,7 @@ Replay failed: Missing required argument: --file=<path-to-payload.json>
 ```bash
 CAPTURE_MODE=true pnpm exec tsx -e "..."
 
-Captured payload: /Users/david/Documents/github/chumi/-Senior-Backend-Challenge/debug-payloads/analysis-requested-capture-replay-test-20260612-173838031Z.json
+Captured payload: debug-payloads/analysis-requested-capture-replay-test-20260612-173838031Z.json
 ```
 
 Replay 验证：
@@ -237,10 +246,12 @@ Replay 验证：
 ```bash
 pnpm run replay -- --file=debug-payloads/analysis-requested-capture-replay-test-20260612-173838031Z.json
 
-Replaying payload from: /Users/david/Documents/github/chumi/-Senior-Backend-Challenge/debug-payloads/analysis-requested-capture-replay-test-20260612-173838031Z.json
+Replaying payload from: debug-payloads/analysis-requested-capture-replay-test-20260612-173838031Z.json
 Replay jobId: capture-replay-test
-Connected to MongoDB
-Processing job: capture-replay-test
-Job completed: capture-replay-test
+{"level":"info","event":"worker_database_connected",...}
+{"level":"info","event":"analysis_job_received","jobId":"capture-replay-test",...}
+{"level":"info","event":"analysis_job_completed","jobId":"capture-replay-test",...}
 Replay completed for jobId: capture-replay-test
 ```
+
+提交中的 `debug-payloads/analysis-requested-naming-example-20260410-143201000Z.json` 是稳定的文件命名示例。它用于展示 envelope 和命名规则，不假设评审环境的 MongoDB 已经存在同名 job。

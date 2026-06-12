@@ -29,6 +29,7 @@ export class AnalysisService {
      */
     async createAnalysis(dto: CreateAnalysisDto): Promise<AnalysisJob> {
         const jobId = uuidv4();
+        const traceId = uuidv4();
         const now = new Date().toISOString();
 
         // Pre-compute quick demographics so the user gets immediate feedback
@@ -56,6 +57,7 @@ export class AnalysisService {
             userId: dto.userId,
             dataUrl: dto.dataUrl,
             timestamp: now,
+            traceId,
         };
 
         await this.messageQueueService.publishEvent(event);
@@ -105,13 +107,28 @@ export class AnalysisService {
             });
 
             if (!updated) {
-                this.logger.log(`Skipped delayed demographics refresh for non-pending job: ${jobId}`);
+                this.logger.log(JSON.stringify({
+                    event: 'legacy_delayed_demographics_refresh_skipped',
+                    jobId,
+                    expectedStatus: 'PENDING',
+                    timestamp: new Date().toISOString(),
+                }));
                 return;
             }
 
-            console.log('Updated demographics for job ' + jobId);
+            this.logger.log(JSON.stringify({
+                event: 'legacy_delayed_demographics_refreshed',
+                jobId,
+                timestamp: new Date().toISOString(),
+            }));
         } catch (error) {
-            console.log('Error happened');
+            this.logger.error(JSON.stringify({
+                event: 'legacy_delayed_demographics_refresh_failed',
+                jobId,
+                errorName: (error as Error).name,
+                message: (error as Error).message,
+                timestamp: new Date().toISOString(),
+            }));
         }
     }
 }

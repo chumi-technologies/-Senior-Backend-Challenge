@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { AnalysisRequestedEvent } from '@senior-challenge/shared-types';
 
-const QUEUE_DIR = path.join(process.cwd(), 'local-queue');
+const QUEUE_DIR = path.join(findRepositoryRoot(process.cwd()), 'local-queue');
 
 /**
  * Message Queue service - simulates SQS for local development.
@@ -30,5 +30,22 @@ export class MessageQueueService {
 
         fs.writeFileSync(filepath, JSON.stringify(event, null, 2));
         this.logger.log(`📤 Published event: ${event.eventType} -> ${filename}`);
+    }
+}
+
+function findRepositoryRoot(startDir: string): string {
+    let current = startDir;
+
+    while (true) {
+        if (fs.existsSync(path.join(current, 'pnpm-workspace.yaml'))) {
+            return current;
+        }
+
+        const parent = path.dirname(current);
+        if (parent === current) {
+            return startDir;
+        }
+
+        current = parent;
     }
 }

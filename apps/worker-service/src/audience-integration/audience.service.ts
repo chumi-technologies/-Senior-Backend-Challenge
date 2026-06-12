@@ -39,12 +39,12 @@ export class AudienceService {
         mediaId: string,
         options: { forceRefresh?: boolean } = {},
     ): Promise<UnifiedAudienceData | null> {
-        console.log(`[AudienceService] Fetching audience for ${platform}:${mediaId}`);
+        this.logEvent('info', 'audience_fetch_requested', { platform, mediaId });
 
         // Check cache first
         const cacheKey = `${platform}:${mediaId}`;
         if (!options.forceRefresh && this.cache.has(cacheKey)) {
-            console.log('[AudienceService] Using cached data');
+            this.logEvent('info', 'audience_cache_hit', { platform, mediaId });
             return this.cache.get(cacheKey);
         }
 
@@ -56,9 +56,7 @@ export class AudienceService {
             );
 
             if (!rawData) {
-                console.error('[AudienceService] ❌ No data returned from facade layer');
-                console.error('[AudienceService] mediaId:', mediaId);
-                console.error('[AudienceService] platform:', platform);
+                this.logEvent('warn', 'audience_facade_returned_no_data', { platform, mediaId });
                 return null;
             }
 
@@ -73,18 +71,23 @@ export class AudienceService {
 
             // Validate data completeness
             if (!this.validateAudienceData(unifiedData)) {
-                console.error('[AudienceService] Data validation failed');
+                this.logEvent('warn', 'audience_validation_failed', { platform, mediaId });
                 return null;
             }
 
             // Cache the result
             this.cache.set(cacheKey, unifiedData);
 
-            console.log('[AudienceService] ✅ Successfully fetched and mapped audience data');
+            this.logEvent('info', 'audience_fetch_succeeded', { platform, mediaId });
             return unifiedData;
 
         } catch (error) {
-            console.error('[AudienceService] Error fetching audience:', (error as Error).message);
+            this.logEvent('error', 'audience_fetch_failed', {
+                platform,
+                mediaId,
+                errorName: (error as Error).name,
+                message: (error as Error).message,
+            });
             throw error;
         }
     }
@@ -95,7 +98,9 @@ export class AudienceService {
     async batchFetchAudienceData(
         influencerData: InfluencerAudienceIds[],
     ) {
-        console.log(`[AudienceService] Batch fetching for ${influencerData.length} influencers`);
+        this.logEvent('info', 'audience_batch_fetch_requested', {
+            influencerCount: influencerData.length,
+        });
 
         const results = [];
         const errors = [];
@@ -113,7 +118,10 @@ export class AudienceService {
                     else errors.push({ platform, mediaId });
                 }
             } catch (error) {
-                console.error('[AudienceService] Batch item failed:', (error as Error).message);
+                this.logEvent('error', 'audience_batch_item_failed', {
+                    errorName: (error as Error).name,
+                    message: (error as Error).message,
+                });
                 errors.push({ error: (error as Error).message });
             }
         }
@@ -127,5 +135,14 @@ export class AudienceService {
 
     async cleanup() {
         await this.facadeService.cleanup();
+    }
+
+    private logEvent(level: 'info' | 'warn' | 'error', event: string, context: Record<string, unknown>): void {
+        console.log(JSON.stringify({
+            level,
+            event,
+            timestamp: new Date().toISOString(),
+            ...context,
+        }));
     }
 }

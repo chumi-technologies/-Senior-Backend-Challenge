@@ -346,8 +346,17 @@ function normalizeEngagementScore(value: RawChaosRecord['engagementScore']):
     }
 
     if (typeof value === 'string') {
-        const numeric = Number(value);
-        if (!Number.isNaN(numeric) && numeric >= 0 && numeric <= 1) {
+        const trimmed = value.trim();
+        if (trimmed.length === 0) {
+            return invalid(
+                'engagementScore',
+                value,
+                'engagementScore is empty; keeping core demographics only',
+            );
+        }
+
+        const numeric = Number(trimmed);
+        if (Number.isFinite(numeric) && numeric >= 0 && numeric <= 1) {
             return { ok: true, value: numeric, changed: true };
         }
     }

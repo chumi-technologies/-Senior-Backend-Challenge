@@ -1,14 +1,23 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import mongoose from 'mongoose';
+import mongoose, { type Connection } from 'mongoose';
 import { z } from 'zod';
-import type { AnalysisRequestedEvent, AnalysisJob, Demographics, ThirdPartyApiResponse } from '@senior-challenge/shared-types';
+import type { AnalysisRequestedEvent, AnalysisStatus, Demographics, ThirdPartyApiResponse } from '@senior-challenge/shared-types';
 import type { MessageProcessor } from './processor.interface';
 
 const MONGODB_URI = process.env.MONGODB_URI ?? 'mongodb://localhost:27017/analysis_db';
 const FAILED_RECORDS_DIR = 'failed-records';
 const CANONICAL_AGE_RANGES = new Set(['under-18', '18-24', '25-34', '35-44', '45-54', '55+']);
 const ALLOWED_GENDERS = new Set(['male', 'female', 'other', 'non-binary']);
+const MIN_PROCESSING_LEASE_TIMEOUT_MS = 1000;
+const PROCESSING_LEASE_TIMEOUT_MS = Math.max(
+    parsePositiveInteger(process.env.PROCESSING_LEASE_TIMEOUT_MS, 5 * 60 * 1000),
+    MIN_PROCESSING_LEASE_TIMEOUT_MS,
+);
+const PROCESSING_LEASE_HEARTBEAT_MS = parseProcessingLeaseHeartbeatMs(
+    process.env.PROCESSING_LEASE_HEARTBEAT_MS,
+    PROCESSING_LEASE_TIMEOUT_MS,
+);
 
 interface ValidationIssue {
     field: string;
@@ -16,10 +25,26 @@ interface ValidationIssue {
     reason: string;
 }
 
+interface ProcessOptions {
+    allowFailedRetry?: boolean;
+    failOnSkipped?: boolean;
+    failOnProcessingError?: boolean;
+    source?: 'queue' | 'replay';
+}
+
+type ProcessingStartResult = 'started' | 'recovered' | 'skipped' | 'inflight';
+
 class ThirdPartyValidationError extends Error {
     constructor(readonly issues: ValidationIssue[]) {
         super('Third-party API response failed validation');
         this.name = 'ThirdPartyValidationError';
+    }
+}
+
+class JobInFlightError extends Error {
+    constructor(readonly jobId: string) {
+        super(`Job is already being processed: ${jobId}`);
+        this.name = 'JobInFlightError';
     }
 }
 
@@ -43,7 +68,7 @@ type ThirdPartyData = NonNullable<z.infer<typeof ThirdPartyApiResponseSchema>['d
  * Handles the full analysis pipeline: fetch third-party data, transform, and persist results.
  */
 export class AnalysisProcessor implements MessageProcessor {
-    private connection: mongoose.Connection | null = null;
+    private connection: Connection | null = null;
     private readonly ready: Promise<void>;
 
     constructor() {
@@ -52,30 +77,65 @@ export class AnalysisProcessor implements MessageProcessor {
 
     private async initializeDatabase(): Promise<void> {
         try {
-            await mongoose.connect(MONGODB_URI);
-            this.connection = mongoose.connection;
-            console.log('Connected to MongoDB');
+            this.connection = await mongoose.createConnection(MONGODB_URI).asPromise();
+            this.logEvent('info', 'worker_database_connected', {
+                databaseName: this.connection.name,
+            });
         } catch (error) {
-            console.log('DB connection failed');
+            this.logEvent('error', 'worker_database_connection_failed', {
+                errorName: (error as Error).name,
+                message: (error as Error).message,
+            });
+            throw error;
         }
+    }
+
+    async close(): Promise<void> {
+        await this.ready.catch(() => undefined);
+        const connection = this.connection;
+        this.connection = null;
+        await connection?.close().catch(() => undefined);
     }
 
     /**
      * Processes an analysis request from the message queue.
      * Fetches data from the third-party API, transforms it, and saves the results.
      */
-    async process(event: AnalysisRequestedEvent): Promise<void> {
-        await this.ready;
-
+    async process(event: AnalysisRequestedEvent, options: ProcessOptions = {}): Promise<void> {
         const { jobId, dataUrl, traceId } = event;
         const traceIdForLog = traceId ?? null;
+        const processingLeaseOwner = this.createProcessingLeaseOwner(jobId);
         let apiResponse: ThirdPartyApiResponse | undefined;
-
-        console.log('Processing job: ' + jobId);
+        let startedProcessing = false;
+        let leaseHeartbeat: ReturnType<typeof setInterval> | undefined;
 
         try {
-            // Update status to PROCESSING
-            await this.updateJobStatus(jobId, 'PROCESSING');
+            await this.ready;
+
+            this.logEvent('info', 'analysis_job_received', {
+                jobId,
+                traceId: traceIdForLog,
+                source: options.source ?? 'queue',
+            });
+
+            const startResult = await this.markJobProcessing(jobId, traceIdForLog, processingLeaseOwner, options);
+            if (startResult === 'inflight') {
+                throw new JobInFlightError(jobId);
+            }
+
+            if (startResult === 'skipped') {
+                this.logEvent('warn', 'analysis_job_start_skipped_due_to_state', {
+                    jobId,
+                    traceId: traceIdForLog,
+                    expectedStatus: 'PENDING_OR_PROCESSING',
+                });
+                if (options.failOnSkipped) {
+                    throw new Error(`Job ${jobId} could not be started for replay; it may be missing or already terminal`);
+                }
+                return;
+            }
+            startedProcessing = true;
+            leaseHeartbeat = this.startProcessingLeaseHeartbeat(jobId, traceIdForLog, processingLeaseOwner);
 
             // Call third-party API for full analysis
             apiResponse = await this.callThirdPartyApi(dataUrl);
@@ -87,10 +147,36 @@ export class AnalysisProcessor implements MessageProcessor {
             });
 
             // Save the analysis results
-            await this.updateJobWithResults(jobId, demographics);
+            const completed = await this.markJobCompleted(jobId, demographics, traceIdForLog, processingLeaseOwner);
+            if (!completed) {
+                this.logEvent('warn', 'analysis_job_completion_skipped_due_to_state', {
+                    jobId,
+                    traceId: traceIdForLog,
+                    expectedStatus: 'PROCESSING',
+                });
+                if (options.failOnSkipped) {
+                    throw new Error(`Job ${jobId} completion was skipped because the processing lease no longer matched`);
+                }
+                return;
+            }
+            this.stopProcessingLeaseHeartbeat(leaseHeartbeat);
+            leaseHeartbeat = undefined;
 
-            console.log('Job completed: ' + jobId);
+            this.logEvent('info', 'analysis_job_completed', {
+                jobId,
+                traceId: traceIdForLog,
+            });
         } catch (error) {
+            if (!startedProcessing) {
+                this.logEvent(error instanceof JobInFlightError ? 'warn' : 'error', 'analysis_job_failed_before_processing', {
+                    jobId,
+                    traceId: traceIdForLog,
+                    errorName: (error as Error).name,
+                    message: (error as Error).message,
+                });
+                throw error;
+            }
+
             this.logEvent('error', 'analysis_job_failed', {
                 jobId,
                 traceId: traceIdForLog,
@@ -98,8 +184,26 @@ export class AnalysisProcessor implements MessageProcessor {
                 message: (error as Error).message,
                 validationIssues: error instanceof ThirdPartyValidationError ? error.issues : undefined,
             });
+
+            const markedFailed = await this.markJobFailed(jobId, error as Error, traceIdForLog, processingLeaseOwner);
+            if (!markedFailed) {
+                this.logEvent('warn', 'analysis_job_failure_update_skipped_due_to_state', {
+                    jobId,
+                    traceId: traceIdForLog,
+                    expectedStatus: 'PROCESSING',
+                });
+                if (options.failOnSkipped) {
+                    throw new Error(`Job ${jobId} failure update was skipped because the processing lease no longer matched`);
+                }
+                return;
+            }
+
             await this.writeFailedRecord(event, error as Error, apiResponse);
-            await this.updateJobStatus(jobId, 'FAILED');
+            if (options.failOnProcessingError) {
+                throw error;
+            }
+        } finally {
+            this.stopProcessingLeaseHeartbeat(leaseHeartbeat);
         }
     }
 
@@ -336,8 +440,13 @@ export class AnalysisProcessor implements MessageProcessor {
         }
 
         if (typeof value === 'string') {
-            const numeric = Number(value);
-            if (!Number.isNaN(numeric) && numeric >= 0 && numeric <= 1) {
+            const trimmed = value.trim();
+            if (trimmed.length === 0) {
+                return this.invalid('score', value, 'score is empty; keeping core demographics only');
+            }
+
+            const numeric = Number(trimmed);
+            if (Number.isFinite(numeric) && numeric >= 0 && numeric <= 1) {
                 return { ok: true, value: numeric };
             }
         }
@@ -364,31 +473,250 @@ export class AnalysisProcessor implements MessageProcessor {
         return '55+';
     }
 
-    private async updateJobStatus(jobId: string, status: string): Promise<void> {
+    private getAnalysisJobsCollection() {
         const collection = this.connection?.collection('analysis_jobs');
-        if (!collection) return;
+        if (!collection) {
+            throw new Error('MongoDB connection is not initialized');
+        }
 
-        await collection.updateOne(
-            { jobId },
-            { $set: { status, updatedAt: new Date().toISOString() } },
-        );
+        return collection;
     }
 
-    private async updateJobWithResults(jobId: string, demographics: Demographics): Promise<void> {
-        const collection = this.connection?.collection('analysis_jobs');
-        if (!collection) return;
+    private async markJobProcessing(
+        jobId: string,
+        traceId: string | null,
+        processingLeaseOwner: string,
+        options: ProcessOptions,
+    ): Promise<ProcessingStartResult> {
+        const collection = this.getAnalysisJobsCollection();
+        const now = new Date().toISOString();
+        const startableStatuses: AnalysisStatus[] = options.allowFailedRetry
+            ? ['PENDING', 'FAILED']
+            : ['PENDING'];
 
-        await collection.updateOne(
-            { jobId },
+        const result = await collection.updateOne(
+            { jobId, status: { $in: startableStatuses } },
             {
                 $set: {
-                    status: 'COMPLETED',
-                    demographics,
-                    updatedAt: new Date().toISOString(),
-                    completedAt: new Date().toISOString(),
+                    status: 'PROCESSING' satisfies AnalysisStatus,
+                    updatedAt: now,
+                    processingLeaseExpiresAt: this.createProcessingLeaseExpiresAt(),
+                    processingLeaseOwner,
+                },
+                $unset: {
+                    error: '',
+                    completedAt: '',
                 },
             },
         );
+
+        this.logMatchedCount('analysis_job_mark_processing', jobId, traceId, result.matchedCount);
+        if (result.matchedCount === 1) {
+            return 'started';
+        }
+
+        const currentJob = await collection.findOne<{
+            status?: AnalysisStatus;
+            processingLeaseExpiresAt?: string;
+            processingLeaseOwner?: string;
+        }>(
+            { jobId },
+            { projection: { status: 1, processingLeaseExpiresAt: 1, processingLeaseOwner: 1 } },
+        );
+
+        if (currentJob?.status === 'PROCESSING') {
+            const leaseExpiresAtMs = this.getProcessingLeaseExpiresAtMs(currentJob.processingLeaseExpiresAt);
+            const leaseRemainingMs = leaseExpiresAtMs - Date.now();
+            if (leaseRemainingMs > 0) {
+                this.logEvent('warn', 'analysis_job_processing_inflight', {
+                    jobId,
+                    traceId,
+                    currentStatus: currentJob.status,
+                    processingLeaseExpiresAt: currentJob.processingLeaseExpiresAt ?? null,
+                    leaseRemainingMs,
+                    leaseTimeoutMs: PROCESSING_LEASE_TIMEOUT_MS,
+                    reason: 'job is still within processing lease; keeping queue message for retry',
+                });
+                return 'inflight';
+            }
+
+            const recoveryFilter: Record<string, unknown> = {
+                jobId,
+                status: 'PROCESSING' satisfies AnalysisStatus,
+                processingLeaseExpiresAt: typeof currentJob.processingLeaseExpiresAt === 'string'
+                    ? currentJob.processingLeaseExpiresAt
+                    : { $exists: false },
+                processingLeaseOwner: typeof currentJob.processingLeaseOwner === 'string'
+                    ? currentJob.processingLeaseOwner
+                    : { $exists: false },
+            };
+            const recoveryResult = await collection.updateOne(
+                recoveryFilter,
+                {
+                    $set: {
+                        updatedAt: now,
+                        processingLeaseExpiresAt: this.createProcessingLeaseExpiresAt(),
+                        processingLeaseOwner,
+                    },
+                },
+            );
+
+            this.logEvent(recoveryResult.matchedCount === 1 ? 'warn' : 'error', 'analysis_job_processing_recovered', {
+                jobId,
+                traceId,
+                matchedCount: recoveryResult.matchedCount,
+                previousProcessingLeaseExpiresAt: currentJob.processingLeaseExpiresAt ?? null,
+                previousProcessingLeaseOwner: currentJob.processingLeaseOwner ?? null,
+                leaseExpiredByMs: Math.max(0, Date.now() - leaseExpiresAtMs),
+                leaseTimeoutMs: PROCESSING_LEASE_TIMEOUT_MS,
+                reason: 'stale PROCESSING lease recovered because queue message still exists',
+            });
+
+            if (recoveryResult.matchedCount === 1) {
+                return 'recovered';
+            }
+
+            return 'inflight';
+        }
+
+        this.logEvent('warn', 'analysis_job_start_not_allowed', {
+            jobId,
+            traceId,
+            currentStatus: currentJob?.status ?? null,
+        });
+        return 'skipped';
+    }
+
+    private startProcessingLeaseHeartbeat(
+        jobId: string,
+        traceId: string | null,
+        processingLeaseOwner: string,
+    ): ReturnType<typeof setInterval> {
+        const heartbeat = setInterval(() => {
+            void this.extendProcessingLease(jobId, traceId, processingLeaseOwner).catch((error) => {
+                this.logEvent('error', 'analysis_processing_lease_heartbeat_failed', {
+                    jobId,
+                    traceId,
+                    errorName: (error as Error).name,
+                    message: (error as Error).message,
+                });
+            });
+        }, PROCESSING_LEASE_HEARTBEAT_MS);
+
+        heartbeat.unref?.();
+        return heartbeat;
+    }
+
+    private stopProcessingLeaseHeartbeat(heartbeat: ReturnType<typeof setInterval> | undefined): void {
+        if (heartbeat) {
+            clearInterval(heartbeat);
+        }
+    }
+
+    private async extendProcessingLease(
+        jobId: string,
+        traceId: string | null,
+        processingLeaseOwner: string,
+    ): Promise<void> {
+        const collection = this.getAnalysisJobsCollection();
+        const result = await collection.updateOne(
+            { jobId, status: 'PROCESSING' satisfies AnalysisStatus, processingLeaseOwner },
+            {
+                $set: {
+                    updatedAt: new Date().toISOString(),
+                    processingLeaseExpiresAt: this.createProcessingLeaseExpiresAt(),
+                },
+            },
+        );
+
+        if (result.matchedCount === 0) {
+            this.logEvent('warn', 'analysis_processing_lease_heartbeat_skipped', {
+                jobId,
+                traceId,
+                matchedCount: result.matchedCount,
+                processingLeaseOwner,
+            });
+        }
+    }
+
+    private createProcessingLeaseExpiresAt(): string {
+        return new Date(Date.now() + PROCESSING_LEASE_TIMEOUT_MS).toISOString();
+    }
+
+    private getProcessingLeaseExpiresAtMs(processingLeaseExpiresAt: string | undefined): number {
+        if (!processingLeaseExpiresAt) {
+            return 0;
+        }
+
+        const expiresAtMs = Date.parse(processingLeaseExpiresAt);
+        return Number.isNaN(expiresAtMs) ? 0 : expiresAtMs;
+    }
+
+    private createProcessingLeaseOwner(jobId: string): string {
+        return `${this.sanitizeForFilename(jobId)}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    }
+
+    private async markJobCompleted(
+        jobId: string,
+        demographics: Demographics,
+        traceId: string | null,
+        processingLeaseOwner: string,
+    ): Promise<boolean> {
+        const collection = this.getAnalysisJobsCollection();
+        const now = new Date().toISOString();
+
+        const result = await collection.updateOne(
+            { jobId, status: 'PROCESSING' satisfies AnalysisStatus, processingLeaseOwner },
+            {
+                $set: {
+                    status: 'COMPLETED' satisfies AnalysisStatus,
+                    demographics,
+                    updatedAt: now,
+                    completedAt: now,
+                },
+                $unset: {
+                    processingLeaseExpiresAt: '',
+                    processingLeaseOwner: '',
+                },
+            },
+        );
+
+        this.logMatchedCount('analysis_job_mark_completed', jobId, traceId, result.matchedCount);
+        return result.matchedCount === 1;
+    }
+
+    private async markJobFailed(
+        jobId: string,
+        error: Error,
+        traceId: string | null,
+        processingLeaseOwner: string,
+    ): Promise<boolean> {
+        const collection = this.getAnalysisJobsCollection();
+        const result = await collection.updateOne(
+            { jobId, status: 'PROCESSING' satisfies AnalysisStatus, processingLeaseOwner },
+            {
+                $set: {
+                    status: 'FAILED' satisfies AnalysisStatus,
+                    error: error.message,
+                    updatedAt: new Date().toISOString(),
+                },
+                $unset: {
+                    processingLeaseExpiresAt: '',
+                    processingLeaseOwner: '',
+                },
+            },
+        );
+
+        this.logMatchedCount('analysis_job_mark_failed', jobId, traceId, result.matchedCount);
+        return result.matchedCount === 1;
+    }
+
+    private logMatchedCount(event: string, jobId: string, traceId: string | null, matchedCount: number): void {
+        this.logEvent(matchedCount === 1 ? 'info' : 'warn', event, {
+            jobId,
+            traceId,
+            matchedCount,
+        });
     }
 
     private logEvent(level: 'info' | 'warn' | 'error', event: string, context: Record<string, unknown>): void {
@@ -469,4 +797,25 @@ export class AnalysisProcessor implements MessageProcessor {
     private formatTimestampForFilename(value: string): string {
         return value.replace(/[-:.]/g, '').replace('T', '-').replace('Z', 'Z');
     }
+}
+
+function parsePositiveInteger(value: string | undefined, fallback: number): number {
+    if (!value) {
+        return fallback;
+    }
+
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+        return fallback;
+    }
+
+    return parsed;
+}
+
+function parseProcessingLeaseHeartbeatMs(value: string | undefined, timeoutMs: number): number {
+    const fallback = Math.max(1, Math.floor(timeoutMs / 3));
+    const requested = parsePositiveInteger(value, fallback);
+    const maxHeartbeat = Math.max(1, Math.floor(timeoutMs / 2));
+
+    return Math.min(requested, maxHeartbeat);
 }
