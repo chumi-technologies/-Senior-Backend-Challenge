@@ -17,13 +17,14 @@ This repository is a backend interview challenge. It simulates an influencer mar
 - `debug-payloads/`: captured payloads and replay/debug samples.
 - `solutions/`: written analysis reports required by the challenge.
 
-The current branch contains five logical changes:
+The current branch contains six logical changes:
 
 1. Startup dependency fix: add missing `@senior-challenge/shared-types` workspace dependencies to the apps.
 2. Part 2 consistency fix: prevent delayed quick demographics from overwriting Worker results.
 3. Part 1 Capture & Replay: capture Worker input payloads and replay them locally.
 4. Part 3 chaos data processing: validate and classify third-party dirty data with Zod plus business rules.
 5. Part 4 audience integration fix: support known third-party response shapes via extractor registry.
+6. Part 5 architecture trade-off answer: design a two-week batch pipeline for 5M records / 2 hours.
 
 ## Part 1: Capture & Replay
 
@@ -368,6 +369,62 @@ Potential review questions:
 - Does the platform/id-field registry sufficiently satisfy the "new platform without core logic changes" requirement while avoiding premature runtime support for unverified platforms?
 - Should `AudiencePayload` validation be stricter before returning extracted data?
 
+## Part 5: Architecture Trade-offs
+
+### Problem Understanding
+
+The Enterprise scenario asks us to process a weekly 10GB CSV upload, about 5,000,000 rows, within 2 hours. The existing Worker is a single polling instance at roughly 10 records/sec.
+
+The core throughput model is:
+
+```text
+5,000,000 rows / 7,200 seconds = 694.44 rows/sec
+```
+
+The answer targets at least 900 accounted rows/sec to leave room for retry, tail latency, Mongo writes, and final aggregation.
+
+### Design Decision
+
+The Part 5 answer rejects Rust rewrite and from-scratch Kubernetes as the two-week primary path. The rationale is not "Rust is bad" or "rewrites are impossible"; AI-assisted rewrites can be viable when contracts and tests are strong. The reason is that this problem is dominated by batch orchestration and external bottlenecks:
+
+- S3 ingestion and streaming CSV splitting
+- shard/chunk queue fan-out
+- third-party provider quota / latency
+- idempotent retry behavior
+- Mongo bulk writes
+- partial aggregation and report finalization
+- error aggregation for about 50,000 failures if 1% fail
+
+The recommended architecture is:
+
+```text
+S3 upload
+  -> streaming CSV splitter
+  -> S3 shard files + shard manifest
+  -> SQS shard pointer messages
+  -> ECS Fargate / AWS Batch TypeScript workers
+  -> provider-aware rate limiter
+  -> Mongo bulk upserts + S3 partial aggregates
+  -> S3 failed rows / SQS DLQ
+  -> finalizer merges partial aggregates into report
+```
+
+Important boundaries:
+
+- Queue messages are shard pointers, not 5,000,000 row-level messages.
+- Processing uses at-least-once delivery plus deterministic idempotency keys, not distributed exactly-once.
+- Failed row storage moves from local per-job files to S3 JSONL partitioned by run/shard/error category.
+- Alerts are based on aggregate signals such as ETA, failure rate, DLQ depth, provider 429s, and top error buckets.
+
+Potential review questions:
+
+- Is 900 accounted rows/sec the right capacity target, or should the answer state a wider target range?
+- Is shard size 2k-10k rows appropriate, or should it be based on target shard duration?
+- Is SQS shard pointer fan-out preferable to row-level messages for this challenge?
+- Does the Rust response properly account for AI-assisted rewrite lowering migration cost while still rejecting rewrite as the primary path?
+- Is ECS Fargate / AWS Batch an appropriate managed compute recommendation, or should Step Functions be more central?
+- Are the observability and failure aggregation recommendations specific enough for 50,000 row-level failures?
+
 ## Validation Already Run
 
 Commands run locally:
@@ -414,6 +471,7 @@ Docs and samples:
 - `solutions/part2-analysis.md`
 - `solutions/part3-observability.md`
 - `solutions/part4-audience-trace.md`
+- `solutions/part5-tradeoffs.md`
 - `debug-payloads/analysis-requested-naming-example-20260410-143201000Z.json`
 - `debug-payloads/chaos-data-samples.json`
 - `.gitignore`
@@ -434,6 +492,9 @@ Please review the implementation for:
 10. Whether the documented `dataUrl` size/redaction risk should be implemented now.
 11. Whether the Part 4 extractor registry is an appropriate minimal compatibility layer.
 12. Whether the Part 4 platform registry is enough for the stated extensibility requirement.
-13. Any simpler or more idiomatic TypeScript/NestJS approach that would better fit this codebase.
+13. Whether the Part 5 architecture plan is realistic for one backend engineer in two weeks.
+14. Whether the Rust/Kubernetes trade-off answer is nuanced enough in the AI-assisted development era.
+15. Whether the Part 5 observability strategy is strong enough for 50,000 row-level failures.
+16. Any simpler or more idiomatic TypeScript/NestJS approach that would better fit this codebase.
 
 Please avoid broad rewrites unless they are necessary. Prefer minimal, challenge-appropriate changes with clear validation.
