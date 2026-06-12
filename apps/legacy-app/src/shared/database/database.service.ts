@@ -67,4 +67,26 @@ export class DatabaseService implements OnModuleInit {
             { $set: { ...updates, updatedAt: new Date().toISOString() } },
         );
     }
+
+    /**
+     * Updates a job only while it is still in the expected state.
+     * This keeps delayed low-priority writes from overwriting newer worker results.
+     */
+    async updateJobIfStatus(
+        jobId: string,
+        expectedStatus: AnalysisJob['status'],
+        updates: Partial<AnalysisJob>,
+    ): Promise<boolean> {
+        const collection = this.connection?.collection('analysis_jobs');
+        if (!collection) {
+            throw new Error('Database not connected');
+        }
+
+        const result = await collection.updateOne(
+            { jobId, status: expectedStatus },
+            { $set: { ...updates, updatedAt: new Date().toISOString() } },
+        );
+
+        return result.matchedCount > 0;
+    }
 }
