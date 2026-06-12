@@ -102,9 +102,14 @@ Append the decision to `solutions/release-command-log.md`.
 
 The final repository must include:
 
+- `solutions/spec.md`
 - `solutions/ai-collaboration-log.md`
 - `solutions/decision-log.md`
 - `solutions/release-command-log.md`
+- `solutions/part1-billing-semantics.md`
+- `solutions/part2-release-interruption.md`
+- `solutions/refactor-plan.md`
+- `solutions/scale-plan.md`
 - test evidence
 - command output evidence
 

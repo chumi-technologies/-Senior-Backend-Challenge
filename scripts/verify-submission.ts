@@ -14,11 +14,14 @@ type CheckResult = {
 };
 
 const requiredFiles: readonly RequiredFile[] = [
+    { path: 'solutions/spec.md', description: 'spec-driven triage before code' },
     { path: 'solutions/ai-collaboration-log.md', description: 'AI collaboration chronology' },
     { path: 'solutions/decision-log.md', description: 'semantic and source-of-truth decisions' },
     { path: 'solutions/release-command-log.md', description: 'release state and command timeline' },
-    { path: 'solutions/part6-billing-semantics.md', description: 'billing semantic incident report' },
-    { path: 'solutions/part7-release-interruption.md', description: 'interrupted rollout plan' },
+    { path: 'solutions/part1-billing-semantics.md', description: 'billing semantic incident report' },
+    { path: 'solutions/part2-release-interruption.md', description: 'interrupted rollout plan' },
+    { path: 'solutions/refactor-plan.md', description: 'surgical refactor plan' },
+    { path: 'solutions/scale-plan.md', description: 'scale plan under constraints' },
 ];
 
 const allowEmptyTemplates: boolean = process.argv.includes('--allow-empty-templates');
@@ -44,23 +47,36 @@ async function checkFileExists(file: RequiredFile): Promise<CheckResult> {
 }
 
 async function checkSubmissionContent(): Promise<readonly CheckResult[]> {
+    const spec: string = await readText('solutions/spec.md');
     const aiLog: string = await readText('solutions/ai-collaboration-log.md');
     const decisionLog: string = await readText('solutions/decision-log.md');
     const releaseLog: string = await readText('solutions/release-command-log.md');
-    const billingReport: string = await readText('solutions/part6-billing-semantics.md');
-    const rolloutReport: string = await readText('solutions/part7-release-interruption.md');
+    const billingReport: string = await readText('solutions/part1-billing-semantics.md');
+    const rolloutReport: string = await readText('solutions/part2-release-interruption.md');
+    const refactorPlan: string = await readText('solutions/refactor-plan.md');
+    const scalePlan: string = await readText('solutions/scale-plan.md');
     return [
+        checkSpecContent(spec),
         checkMinimumAiEntries(aiLog),
         checkHumanCorrectionEvidence(aiLog),
         checkSemanticTerms(decisionLog),
         checkReleaseStateEvidence(releaseLog),
         checkBillingPlaceholders(billingReport),
         checkRolloutPlaceholders(rolloutReport),
+        checkRefactorScope(refactorPlan),
+        checkScalePlan(scalePlan),
     ];
 }
 
 async function readText(path: string): Promise<string> {
     return readFile(join(process.cwd(), path), 'utf8');
+}
+
+function checkSpecContent(content: string): CheckResult {
+    const requiredTerms: readonly string[] = ['source-of-truth', 'non-goals', 'blast radius', 'validation plan', 'ai recommendation'];
+    const missingTerms: readonly string[] = requiredTerms.filter((term: string): boolean => !content.toLowerCase().includes(term));
+    const hasEmptyRows: boolean = content.includes('| | | |') || content.includes('- \n- \n-');
+    return { name: 'Spec content', passed: missingTerms.length === 0 && !hasEmptyRows, message: missingTerms.length === 0 && !hasEmptyRows ? 'Spec appears filled.' : `Spec is incomplete. Missing or empty: ${missingTerms.join(', ') || 'template rows'}.` };
 }
 
 function checkMinimumAiEntries(content: string): CheckResult {
@@ -88,13 +104,25 @@ function checkReleaseStateEvidence(content: string): CheckResult {
 }
 
 function checkBillingPlaceholders(content: string): CheckResult {
-    const hasUnfilledPrompt: boolean = content.includes('Your answer:') || content.includes('| customer balance | | |');
-    return { name: 'Billing semantics report', passed: !hasUnfilledPrompt, message: hasUnfilledPrompt ? 'Part 6 still contains template placeholders.' : 'Part 6 appears filled.' };
+    const hasUnfilledPrompt: boolean = content.includes('Answer:') || content.includes('| customer balance | | |');
+    return { name: 'Billing semantics report', passed: !hasUnfilledPrompt, message: hasUnfilledPrompt ? 'Billing report still contains template placeholders.' : 'Billing report appears filled.' };
 }
 
 function checkRolloutPlaceholders(content: string): CheckResult {
-    const hasUnfilledPrompt: boolean = content.includes('1. ...') || content.includes('| stable image | | |');
-    return { name: 'Interrupted rollout report', passed: !hasUnfilledPrompt, message: hasUnfilledPrompt ? 'Part 7 still contains template placeholders.' : 'Part 7 appears filled.' };
+    const hasUnfilledPrompt: boolean = content.includes('1. \n2.') || content.includes('| stable image | | |');
+    return { name: 'Interrupted rollout report', passed: !hasUnfilledPrompt, message: hasUnfilledPrompt ? 'Rollout report still contains template placeholders.' : 'Rollout report appears filled.' };
+}
+
+function checkRefactorScope(content: string): CheckResult {
+    const requiredTerms: readonly string[] = ['target', 'characterization', 'extraction boundary', 'rejected'];
+    const missingTerms: readonly string[] = requiredTerms.filter((term: string): boolean => !content.toLowerCase().includes(term));
+    return { name: 'Surgical refactor plan', passed: missingTerms.length === 0 && !content.includes('| | |'), message: missingTerms.length === 0 ? 'Refactor plan includes scope controls.' : `Refactor plan missing: ${missingTerms.join(', ')}.` };
+}
+
+function checkScalePlan(content: string): CheckResult {
+    const requiredTerms: readonly string[] = ['throughput', 'idempotency', 'concurrency', 'backpressure', 'rollback'];
+    const missingTerms: readonly string[] = requiredTerms.filter((term: string): boolean => !content.toLowerCase().includes(term));
+    return { name: 'Scale plan', passed: missingTerms.length === 0, message: missingTerms.length === 0 ? 'Scale plan includes required operational controls.' : `Scale plan missing: ${missingTerms.join(', ')}.` };
 }
 
 function printResults(results: readonly CheckResult[]): void {

@@ -1,6 +1,4 @@
-# Part 7: Interrupted Rollout — Urgent Patch Plan
-
-> Complete this before making release or deployment changes.
+# Part 2 — Interrupted Rollout Plan
 
 ## 1. Current state evidence
 
@@ -30,8 +28,9 @@ Should the urgent patch be based on stable image A or Phase 1 canary image B?
 ## 4. High-availability sequence
 
 ```text
-1. ...
-2. ...
+1. 
+2. 
+3. 
 ```
 
 ## 5. Customer-invisibility proof

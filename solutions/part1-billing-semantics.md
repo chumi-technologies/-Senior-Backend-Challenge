@@ -1,6 +1,4 @@
-# Part 6: The “Balance” Incident — Semantic Debugging Report
-
-> Complete this before modifying billing, usage, dashboard, or ledger code.
+# Part 1 — Billing Semantics Incident
 
 ## 1. Business glossary
 
@@ -19,9 +17,7 @@
 
 Is this a wrong debit, wrong dashboard label, wrong aggregate, double billing bug, or something else?
 
-```
-Your answer:
-```
+Answer:
 
 ## 3. Source-of-truth map
 

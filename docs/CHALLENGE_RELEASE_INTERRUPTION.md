@@ -1,4 +1,4 @@
-# Part 7: Interrupted Rollout — Urgent Fix Without Customer Impact
+# Part 2: Interrupted Rollout — Urgent Fix Without Customer Impact
 
 ## Why this part exists
 

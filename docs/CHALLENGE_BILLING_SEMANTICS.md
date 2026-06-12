@@ -1,4 +1,4 @@
-# Part 6: The “Balance” Incident — Semantic Debugging
+# Part 1: The “Balance” Incident — Semantic Debugging
 
 ## Why this part exists
 
@@ -38,7 +38,7 @@ Before editing code, create or update `solutions/decision-log.md` with a glossar
 | `account` | customer account vs provider account vs upstream credential |
 | `prepaid` | customer package multiplier vs provider discount |
 
-Then answer in `solutions/part6-billing-semantics.md`:
+Then answer in `solutions/part1-billing-semantics.md`:
 
 1. Is the incident a wrong debit, a wrong dashboard label, a wrong aggregate, or a real double-billing bug?
 2. Which storage object is the source of truth for customer balance?
