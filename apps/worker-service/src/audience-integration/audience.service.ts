@@ -5,14 +5,21 @@
  * of influencer audience data from the facade layer.
  */
 
-import { FacadeAudienceService } from './facade-audience.service';
+import { AudiencePayload, AudiencePlatform, FacadeAudienceService } from './facade-audience.service';
+
+type InfluencerAudienceIds = Partial<Record<`${AudiencePlatform}_id`, string>>;
+
+const PLATFORM_ID_FIELDS: Record<AudiencePlatform, keyof InfluencerAudienceIds> = {
+    instagram: 'instagram_id',
+    tiktok: 'tiktok_id',
+};
 
 interface UnifiedAudienceData {
-    platform: string;
+    platform: AudiencePlatform;
     mediaId: string;
-    gender?: Array<{ label: string; value: number }>;
-    age?: Array<{ label: string; value: number }>;
-    geography?: any;
+    gender?: AudiencePayload['gender'];
+    age?: AudiencePayload['age'];
+    geography?: AudiencePayload['geography'];
 }
 
 export class AudienceService {
@@ -28,16 +35,16 @@ export class AudienceService {
      * Results are cached to avoid redundant API calls.
      */
     async fetchAudienceData(
-        platform: 'instagram' | 'tiktok',
+        platform: AudiencePlatform,
         mediaId: string,
         options: { forceRefresh?: boolean } = {},
     ): Promise<UnifiedAudienceData | null> {
-        console.log(`[AudienceService] Fetching audience for ${platform}:${mediaId}`);
+        this.logEvent('info', 'audience_fetch_requested', { platform, mediaId });
 
         // Check cache first
         const cacheKey = `${platform}:${mediaId}`;
         if (!options.forceRefresh && this.cache.has(cacheKey)) {
-            console.log('[AudienceService] Using cached data');
+            this.logEvent('info', 'audience_cache_hit', { platform, mediaId });
             return this.cache.get(cacheKey);
         }
 
@@ -49,9 +56,7 @@ export class AudienceService {
             );
 
             if (!rawData) {
-                console.error('[AudienceService] ❌ No data returned from facade layer');
-                console.error('[AudienceService] mediaId:', mediaId);
-                console.error('[AudienceService] platform:', platform);
+                this.logEvent('warn', 'audience_facade_returned_no_data', { platform, mediaId });
                 return null;
             }
 
@@ -66,18 +71,23 @@ export class AudienceService {
 
             // Validate data completeness
             if (!this.validateAudienceData(unifiedData)) {
-                console.error('[AudienceService] Data validation failed');
+                this.logEvent('warn', 'audience_validation_failed', { platform, mediaId });
                 return null;
             }
 
             // Cache the result
             this.cache.set(cacheKey, unifiedData);
 
-            console.log('[AudienceService] ✅ Successfully fetched and mapped audience data');
+            this.logEvent('info', 'audience_fetch_succeeded', { platform, mediaId });
             return unifiedData;
 
         } catch (error) {
-            console.error('[AudienceService] Error fetching audience:', (error as Error).message);
+            this.logEvent('error', 'audience_fetch_failed', {
+                platform,
+                mediaId,
+                errorName: (error as Error).name,
+                message: (error as Error).message,
+            });
             throw error;
         }
     }
@@ -86,27 +96,32 @@ export class AudienceService {
      * Batch fetch audience data for multiple influencers.
      */
     async batchFetchAudienceData(
-        influencerData: Array<{ instagram_id?: string; tiktok_id?: string }>,
+        influencerData: InfluencerAudienceIds[],
     ) {
-        console.log(`[AudienceService] Batch fetching for ${influencerData.length} influencers`);
+        this.logEvent('info', 'audience_batch_fetch_requested', {
+            influencerCount: influencerData.length,
+        });
 
         const results = [];
         const errors = [];
 
         for (const data of influencerData) {
             try {
-                if (data.instagram_id) {
-                    const result = await this.fetchAudienceData('instagram', data.instagram_id);
+                for (const [platform, idField] of Object.entries(PLATFORM_ID_FIELDS) as Array<[AudiencePlatform, keyof InfluencerAudienceIds]>) {
+                    const mediaId = data[idField];
+                    if (!mediaId) {
+                        continue;
+                    }
+
+                    const result = await this.fetchAudienceData(platform, mediaId);
                     if (result) results.push(result);
-                    else errors.push({ platform: 'instagram', mediaId: data.instagram_id });
-                }
-                if (data.tiktok_id) {
-                    const result = await this.fetchAudienceData('tiktok', data.tiktok_id);
-                    if (result) results.push(result);
-                    else errors.push({ platform: 'tiktok', mediaId: data.tiktok_id });
+                    else errors.push({ platform, mediaId });
                 }
             } catch (error) {
-                console.error('[AudienceService] Batch item failed:', (error as Error).message);
+                this.logEvent('error', 'audience_batch_item_failed', {
+                    errorName: (error as Error).name,
+                    message: (error as Error).message,
+                });
                 errors.push({ error: (error as Error).message });
             }
         }
@@ -120,5 +135,14 @@ export class AudienceService {
 
     async cleanup() {
         await this.facadeService.cleanup();
+    }
+
+    private logEvent(level: 'info' | 'warn' | 'error', event: string, context: Record<string, unknown>): void {
+        console.log(JSON.stringify({
+            level,
+            event,
+            timestamp: new Date().toISOString(),
+            ...context,
+        }));
     }
 }

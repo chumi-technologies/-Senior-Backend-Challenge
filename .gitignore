@@ -14,6 +14,7 @@ npm-debug.log*
 # Debug payloads (except samples)
 debug-payloads/*
 !debug-payloads/chaos-data-samples.json
+!debug-payloads/analysis-requested-naming-example-20260410-143201000Z.json
 !debug-payloads/.gitkeep
 
 # Failed records
