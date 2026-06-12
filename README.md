@@ -110,9 +110,9 @@ The spec must include:
 - release safety plan
 - what AI suggested and what you rejected or corrected
 
-### AI trap
+### Ambiguity warning
 
-AI will likely suggest making `$100` and `$40` match by changing billing math. That is usually wrong. A senior engineer should first distinguish official list-price usage from payable prepaid debit.
+The ticket intentionally uses overloaded financial terms. Do not change financial behavior until your spec defines the terms and identifies the source of truth.
 
 ## Part 2 — Billing Semantics Incident
 
@@ -134,12 +134,12 @@ You must answer:
 - Should historical ledger entries be rewritten?
 - What tests prove provider balances and load-balancing weights were not touched?
 
-### Red flags
+### Required evidence
 
-- changing ledger debits to match dashboard labels without a semantic decision
-- creating a second billing source of truth
-- globally replacing `balance` with one meaning
-- hard-coding Acme-specific behavior
+- glossary for overloaded terms
+- source-of-truth map
+- tests or checks for customer balance, provider balance, and load-balancing behavior
+- explanation of any historical data treatment
 
 ## Part 3 — Interrupted Rollout: Urgent Phase 2 During Phase 1 Canary
 
@@ -168,12 +168,12 @@ You must decide:
 - what rollback target exists at every step
 - what smoke checks prove billing semantics did not change
 
-### Red flags
+### Required evidence
 
-- updating a canary task while it has public traffic
-- skipping ALB weight inspection
-- merging Phase 1 and Phase 2 without dependency analysis
-- treating “stable” as a Git branch when the context is traffic routing
+- observed rollout state before the decision
+- dependency analysis between Phase 1 and Phase 2
+- rollback target at each step
+- smoke checks for availability and billing semantics
 
 ## Part 4 — Surgical Refactor in a Messy Hot Path
 
@@ -202,9 +202,9 @@ The refactor plan must state:
 - new behavior added
 - why this is smaller than a rewrite
 
-### AI trap
+### Scope warning
 
-AI will often propose a broad clean architecture rewrite. That is a fail. We want the smallest safe change.
+Broad rewrites are out of scope unless your spec proves they are necessary. Prefer the smallest change that can be verified.
 
 ## Part 5 — Scale Plan Under Constraints
 

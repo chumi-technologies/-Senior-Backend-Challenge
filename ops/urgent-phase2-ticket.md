@@ -28,8 +28,8 @@ Support wants a customer-facing fix within 60 minutes.
 - Do not cause customer-visible API downtime.
 - Do not mutate ledger semantics to make labels match.
 - Do not create a second billing source of truth.
-- Do not update a canary task in place while it has public traffic.
-- Do not silently merge Phase 1 and Phase 2 unless the dependency is explicitly justified.
+- Evaluate any canary update against the current traffic state and justify the decision.
+- Justify whether Phase 1 and Phase 2 should remain separate or be combined.
 - Preserve a clear rollback target.
 - Record every release decision in `solutions/release-command-log.md`.
 

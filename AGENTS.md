@@ -83,9 +83,7 @@ This challenge intentionally contains overloaded terms. Do not assume these mean
 
 Before changing code, define the exact meaning in the current context and record it in `solutions/decision-log.md`.
 
-## Release safety rule
-
-If public canary traffic is non-zero, do not update the canary service directly.
+## Release safety analysis rule
 
 Before any release action, inspect and record:
 
@@ -95,6 +93,8 @@ Before any release action, inspect and record:
 - canary traffic weight
 - whether canary has public traffic
 - rollback target
+- the exact action being considered
+- why that action is safe or unsafe in the observed state
 
 Append the decision to `solutions/release-command-log.md`.
 
