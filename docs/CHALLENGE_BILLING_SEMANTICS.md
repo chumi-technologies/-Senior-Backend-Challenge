@@ -1,10 +1,8 @@
 # Part 1: The “Balance” Incident — Semantic Debugging
 
-## Why this part exists
+## Context
 
-This part is designed to expose candidates who let AI collapse overloaded business terms into one meaning. The codebase and ticket intentionally use ambiguous words such as `balance`, `usage`, `cost`, `official`, `actual`, `account`, and `prepaid`.
-
-A correct solution starts with semantic clarification, not code.
+The codebase and ticket intentionally use ambiguous words such as `balance`, `usage`, `cost`, `official`, `actual`, `account`, and `prepaid`. Define terms before changing behavior.
 
 ## Incident ticket
 
@@ -47,14 +45,9 @@ Then answer in `solutions/part1-billing-semantics.md`:
 5. Should historical ledger entries be rewritten? Why or why not?
 6. What tests prove provider balances and load-balancing weights were not touched?
 
-## AI trap
+## Submission evidence
 
-A weak AI-driven solution will often force `TotalCost` and deducted balance to match by changing ledger debit logic. That is usually wrong. The senior signal is noticing that `$100` can be the official list-price usage while `$40` is the correct customer payable debit under a `0.4` package multiplier.
-
-## Acceptance criteria
-
-- The candidate defines overloaded terms before code changes.
-- The candidate does not create a second billing source of truth.
-- The candidate does not hard-code Acme-specific logic.
-- The candidate preserves idempotent ledger behavior.
-- The candidate can explain why matching labels by changing debits is dangerous.
+- Term definitions and source-of-truth map.
+- Root-cause classification.
+- Scope of any code change.
+- Verification evidence for ledger behavior, dashboard behavior, and unrelated balance meanings.
