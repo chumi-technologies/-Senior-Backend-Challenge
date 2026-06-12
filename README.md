@@ -16,9 +16,27 @@
 | **领域语义直觉** | 你能否快速从字段名推断业务含义？看到 `confidence: 0.3` 和 `confidence: 0.85` 时，你对"数据可信度"的理解是否立即浮现？ |
 | **AI 协作深度** | 你向 AI 提出的问题质量——是在做"系统认知"还是在做"搜索引擎式复制粘贴"？ |
 
-> ⚠️ **强制要求**：请将完整的 AI 对话记录保存为 `solutions/ai-chat-log.md` 并随代码一起提交。**对话记录是评分的核心依据之一**——如果缺失，我们将无法评估你真正的工程思维。
+> ⚠️ **强制要求**：请将完整的 AI 对话记录保存为 `solutions/ai-collaboration-log.md` 并随代码一起提交。**对话记录是评分的核心依据之一**——如果缺失，我们将无法评估你真正的工程思维。
 
 ---
+
+
+## 🧾 AI 协作记录与跨 IDE Agent 规则
+
+本仓库包含 `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.cursor/rules/challenge.mdc`, `.windsurfrules`。无论你使用 Codex、Claude Code、Cursor、Gemini、Windsurf 或其他 AI IDE，都应遵守这些规则。
+
+核心要求：
+
+1. AI 每完成一个有意义步骤，都要追加记录到 `solutions/ai-collaboration-log.md`。
+2. 在修改 billing、usage、routing、failover、canary、release 或 customer-facing contract 前，必须先在 `solutions/decision-log.md` 定义语义和 source of truth。
+3. 涉及上线、canary、stable、rollback 的动作必须记录到 `solutions/release-command-log.md`。
+4. 最终提交前运行：
+
+```bash
+pnpm run verify:submission
+```
+
+我们不会因为你使用 AI 扣分；我们会重点评估你是否能发现 AI 对业务语义和上线状态的误判，并主动纠正它。
 
 ## 📋 项目背景
 
@@ -324,18 +342,77 @@ pnpm run process:chaos
 > 3. **妥协与牺牲**：2 周 1 个人，你会主动放弃哪些"最佳实践"？
 > 4. **调试灾难预案**：500 万条中 1% 失败（5万条错误），如何设计监控让研发能排查而不被报警淹没？
 
+
+---
+
+## Part 6: The “Balance” Incident — 语义调试 (约45分钟)
+
+> 详细说明见 `docs/CHALLENGE_BILLING_SEMANTICS.md`。
+
+### 背景
+
+财务和客服同时报告一个看似矛盾的问题：Acme Team 购买了 `0.4` 倍率的 team prepaid package。Dashboard 显示 `Total usage cost: $100.00`，但团队钱包只扣了 `$40.00`。
+
+这不是一道简单的“让两个数字相等”的题。系统里存在多种 `balance`、多种 `cost`、多种 `usage`。如果你或 AI 没有先澄清语义，很容易改错账本或生产第二套财务逻辑。
+
+### 要求
+
+1. 先更新 `solutions/decision-log.md`，定义：customer balance、provider balance、load balance、official cost、actual/payable cost、raw usage event、ledger entry。
+2. 完成 `solutions/part6-billing-semantics.md`。
+3. 再决定是否需要代码修改。
+4. 验证不能破坏：ledger debit、official usage report、provider balance、load-balancing weight、retry idempotency。
+
+### 红线
+
+- 不允许为了让 dashboard 数字一致而直接修改扣费逻辑。
+- 不允许新增第二套 billing source of truth。
+- 不允许把 `balance` 全局替换成同一种含义。
+
+---
+
+## Part 7: Interrupted Rollout — Urgent Fix Without Customer Impact (约45分钟)
+
+> 详细说明见 `docs/CHALLENGE_RELEASE_INTERRUPTION.md`。
+
+### 背景
+
+Phase 1 已经上线到 public canary 1%，但尚未 promoted。此时 Phase 2 urgent ticket 到来，要求 60 分钟内修复 customer-facing cost display，同时保持客户无感和高可用。
+
+当前状态在：
+
+```bash
+ops/current-rollout-state.json
+ops/urgent-phase2-ticket.md
+```
+
+### 要求
+
+1. 先记录当前 stable/canary/image/ALB weight 到 `solutions/release-command-log.md`。
+2. 判断是否可以直接 update canary service。
+3. 判断 urgent patch 应该基于 stable image A 还是 Phase 1 canary image B。
+4. 写出客户无感的 release sequence。
+5. 完成 `solutions/part7-release-interruption.md`。
+6. 证明 ledger semantics 没变、客户不会看到两套账本/两套 response shape。
+
+### 红线
+
+- Public canary traffic 非 0 时，不允许直接热更新 canary task。
+- 不允许没有 dependency analysis 就把 Phase 1 和 Phase 2 合成一个版本。
+- 不允许跳过 ALB weight 检查。
+- 不允许把 dashboard 文案问题修成 ledger 语义变更。
+
 ---
 
 ## 📊 评分标准
 
 | 维度 | 权重 | 评估方式 |
 |------|------|---------|
-| **系统认知 & 数据流向分析** | 40% | 系统认知报告的深度和准确性。数据生命周期图是否精确？字段语义理解是否正确？根因假设是否命中核心？ |
-| **解决方案质量** | 25% | 修复是否正确解决根因（而非只治症状）？是否健壮？ |
-| **AI 协作质量** | 20% | 从 AI Chat Log 评估：你如何向 AI 拆解问题？如何验证 AI 的输出？ |
-| **代码质量** | 15% | TypeScript 规范、合理的抽象、清晰的命名 |
+| **系统认知 & 语义建模** | 35% | 系统认知报告、业务词典、source of truth、release state 判断是否准确？ |
+| **解决方案质量** | 25% | 修复是否正确解决根因（而非只治症状）？是否保留账本、路由、上线边界？ |
+| **AI 协作质量** | 25% | 从 AI Collaboration Log 评估：你如何拆解问题、纠正 AI 的语义误判、验证输出？ |
+| **代码质量与验证证据** | 15% | TypeScript 规范、合理抽象、清晰命名、测试/命令输出证据 |
 
-### 🔍 AI Chat Log 评估细则
+### 🔍 AI Collaboration Log 评估细则
 
 | 行为模式 | 评价 |
 |---------|------|
@@ -368,16 +445,30 @@ senior-backend-challenge/
 │   └── shared-types/            # 共享类型定义
 ├── scripts/
 │   ├── replay-event.ts          # Part 1: Replay 脚本
-│   └── process-chaos.ts         # Part 3: 脏数据处理
+│   ├── process-chaos.ts         # Part 3: 脏数据处理
+│   └── verify-submission.ts     # 提交完整性检查
+├── ops/
+│   ├── current-rollout-state.json
+│   └── urgent-phase2-ticket.md
+├── docs/
+│   ├── CHALLENGE_BILLING_SEMANTICS.md
+│   └── CHALLENGE_RELEASE_INTERRUPTION.md
 ├── debug-payloads/              # Payload 捕获目录
 │   └── chaos-data-samples.json  # 脏数据样本
 ├── failed-records/              # 失败记录目录
 ├── solutions/                   # ⬅️ 你的交付物
-│   ├── ai-chat-log.md           # ⚠️ 必需：AI 完整对话记录
+│   ├── ai-collaboration-log.md  # ⚠️ 必需：AI 协作过程记录
+│   ├── decision-log.md          # ⚠️ 必需：语义/source-of-truth 决策
+│   ├── release-command-log.md   # ⚠️ 必需：上线状态与命令时间线
 │   ├── part2-analysis.md        # 数据流向 & 根因分析
 │   ├── part3-observability.md   # 数据质量分析
 │   ├── part4-audience-trace.md  # 调用链路追踪
-│   └── part5-tradeoffs.md       # 系统设计方案
+│   ├── part5-tradeoffs.md       # 系统设计方案
+│   ├── part6-billing-semantics.md
+│   └── part7-release-interruption.md
+├── AGENTS.md
+├── CLAUDE.md
+├── GEMINI.md
 ├── docker-compose.yml
 └── package.json
 ```

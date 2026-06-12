@@ -1,0 +1,12 @@
+---
+description: Senior backend challenge rules for AI collaboration logging and semantic safety
+alwaysApply: true
+---
+
+Follow `AGENTS.md` for every task in this repository.
+
+- Append every meaningful AI step to `solutions/ai-collaboration-log.md`.
+- Define overloaded terms before code changes: balance, cost, account, usage, stable, canary, provider, customer key.
+- Do not update a canary service directly when it has public traffic.
+- Record release decisions in `solutions/release-command-log.md`.
+- Record semantic decisions in `solutions/decision-log.md`.

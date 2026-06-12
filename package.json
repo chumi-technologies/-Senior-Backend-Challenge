@@ -17,7 +17,8 @@
         "process:chaos": "tsx scripts/process-chaos.ts",
         "simulate:audience-bug": "tsx apps/worker-service/src/audience-integration/run-audience-test.ts",
         "test": "pnpm -r test",
-        "lint": "pnpm -r lint"
+        "lint": "pnpm -r lint",
+        "verify:submission": "tsx scripts/verify-submission.ts"
     },
     "devDependencies": {
         "@types/node": "^20.10.0",

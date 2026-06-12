@@ -1,0 +1,14 @@
+{
+  "phase": "phase1_public_canary_observing",
+  "stableImage": "registry.example.com/gateway:phase0-a17f3d2",
+  "canaryImage": "registry.example.com/gateway:phase1-b93c1a8",
+  "stableTrafficWeight": 99,
+  "canaryTrafficWeight": 1,
+  "canaryHasPublicTraffic": true,
+  "canaryDesiredCount": 1,
+  "stableDesiredCount": 2,
+  "phase1ChangeSummary": "team prepaid usage reporting labels and dashboard aggregation",
+  "phase1Status": "public canary observation, not promoted",
+  "maintenanceJobsEnabledOnCanary": false,
+  "urgentPatchDeadlineMinutes": 60
+}
