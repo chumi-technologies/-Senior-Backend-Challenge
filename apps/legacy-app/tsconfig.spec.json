@@ -1,7 +1,11 @@
 {
     "extends": "./tsconfig.json",
     "compilerOptions": {
-        "rootDir": "."
+        "rootDir": ".",
+        "baseUrl": ".",
+        "paths": {
+            "@senior-challenge/shared-types": ["../../packages/shared-types/src/index.ts"]
+        }
     },
     "include": [
         "src/**/*",
