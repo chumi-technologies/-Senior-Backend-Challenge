@@ -125,3 +125,97 @@ Drafted the spec: current state, source-of-truth map, three root-cause hypothese
 
 ### Remaining risks
 - None for this step; code work follows the spec.
+
+## 2026-06-12 13:05 — Billing report and interrupted-rollout plan authored
+
+### User prompt / intent
+Complete Parts 1-3 deliverables (`part1-billing-semantics.md`, `part2-release-interruption.md`, `release-command-log.md`).
+
+### AI action
+Wrote the billing report (classification: label defect; SoT maps; fix confined to presentation reading payable from the ledger; no historical rewrite) and the release plan: freeze + drain Phase 1, build C = stable A + label fix, deploy to the drained canary group, private smoke at weight 0, 5% public, promote with image A warm as one-action rollback, rebase Phase 1 afterwards.
+
+### Files inspected
+- `ops/current-rollout-state.json`, `ops/urgent-phase2-ticket.md`, `docs/CHALLENGE_BILLING_SEMANTICS.md`, `docs/CHALLENGE_RELEASE_INTERRUPTION.md`
+
+### Commands run
+- none (documents)
+
+### Assumptions
+- ALB-style weighted target groups with connection draining, per the rollout fixture's vocabulary.
+
+### Human corrections / decisions
+- Richard enforced the evidence-honesty rule: the repo has no live ALB/billing system, and the release log header forbids invented output — so both logs explicitly mark which evidence is the fixture itself versus checks that gate a real deploy. AI's earlier draft phrasing that read like executed commands was corrected to "action to issue + artifact to capture".
+
+### Remaining risks
+- Release sequence is a plan against a fixture; weights/timings would be re-validated against the real listener config before execution.
+
+## 2026-06-12 13:20 — Test harness repair, red baseline, regression red (TDD)
+
+### User prompt / intent
+Execute Part 4 per the refactor plan: characterization tests first, prove the #4521 clobber, only then fix.
+
+### AI action
+Repaired the broken inherited test harness (jest/ts-jest/`@nestjs/testing` devDeps, jest config, `tsconfig.spec.json`, missing `workspace:*` dependency declaration), wrote 3 characterization tests plus 1 regression test against an in-memory store emulating Mongo update semantics with jest fake timers, and ran the suite **before** touching application code.
+
+### Files inspected
+- `apps/legacy-app/src/analysis/analysis.service.ts`, `apps/legacy-app/src/shared/database/database.service.ts`, `apps/legacy-app/test/bug-repro.spec.ts`, `apps/legacy-app/tsconfig.json`
+
+### Commands run
+- `corepack pnpm install` (lockfile updated for new devDeps)
+- `corepack pnpm --filter @senior-challenge/shared-types build`
+- `corepack pnpm --filter legacy-app test` → **1 failed, 3 passed** — regression red shows worker results (`ageRange 25-34`, `confidence 0.85`) clobbered by placeholders (`35-44`, `0.3`); verbatim output in `solutions/test-evidence.md` §2
+
+### Assumptions
+- An in-memory store emulating unconditional `$set` vs status-guarded `$set` is a faithful stand-in for the two Mongo update shapes under test.
+
+### Human corrections / decisions
+- Richard chose the guarded atomic update over the AI-listed alternative of deleting the delayed-refresh path (smaller observable behavior change), and required the red output to be preserved verbatim before any fix landed.
+
+### Remaining risks
+- `worker-service` still has no test harness (out of scope, recorded in the refactor plan).
+
+## 2026-06-12 13:35 — Surgical fix applied; suite green; scale plan authored
+
+### User prompt / intent
+Apply the spec'd minimal fix, verify green, complete Part 5.
+
+### AI action
+Added `DatabaseService.updateJobIfPending` (status guard inside the atomic update filter `{ jobId, status: 'PENDING' }`) and switched `delayedUpdate` to call it — one helper, one call-site change. Re-ran the suite: **4 passed, 4 total** (characterization unchanged). Authored the scale plan: 695 rows/s required, 2x design point via bounded in-process concurrency x horizontal replicas of the existing worker, idempotent `(fileId, rowNumber)` upserts, token-bucket provider cap, DLQ + failure buckets, feature-flagged rollback to the legacy path.
+
+### Files inspected
+- `apps/legacy-app/src/shared/database/database.service.ts`, `apps/legacy-app/src/analysis/analysis.service.ts`, `solutions/scale-plan.md`
+
+### Commands run
+- `corepack pnpm --filter legacy-app test` → `Tests: 4 passed, 4 total` (verbatim in `solutions/test-evidence.md` §3)
+
+### Assumptions
+- The 10 rows/s ceiling is I/O latency, not CPU — stated explicitly in the scale plan as the premise the design attacks.
+
+### Human corrections / decisions
+- Richard rejected the CTO-suggested Rust rewrite and Kubernetes migration as answers (wrong bottleneck / zero added rows-per-second) and set the degrade-mode priority: contractual report columns first, enrichment backfilled after the deadline.
+
+### Remaining risks
+- Swallowed-error logging in `delayedUpdate` remains as inherited (documented known issue, out of scope).
+
+## 2026-06-12 13:45 — Final verification and submission packaging
+
+### User prompt / intent
+Run the required final gate and package the submission.
+
+### AI action
+Ran `pnpm run verify:submission`: all 17 checks pass, exit 0 (verbatim in `solutions/test-evidence.md` §4). Assembled the evidence file (baseline / red / green / verify outputs, all unedited) and the commit series in required delivery order: spec+decision+AI log → billing+release docs → refactor plan → tests+fix → scale plan → evidence.
+
+### Files inspected
+- all `solutions/*.md`, `scripts/verify-submission.ts` (read-only, to confirm what the gate checks)
+
+### Commands run
+- `corepack pnpm run verify:submission` → exit 0, 17/17 ✅
+
+### Assumptions
+- none
+
+### Human corrections / decisions
+- Richard reviews the full diff before the PR is opened; the submission is sent only after his sign-off (final human gate of this workflow).
+
+### Remaining risks
+- None blocking. Known inherited issues left deliberately untouched and documented: worker-service test harness absent, swallowed-error logging, unimplemented replay/chaos scripts.
