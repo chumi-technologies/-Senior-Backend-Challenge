@@ -67,4 +67,24 @@ export class DatabaseService implements OnModuleInit {
             { $set: { ...updates, updatedAt: new Date().toISOString() } },
         );
     }
+
+    /**
+     * Updates an analysis job only while it is still PENDING.
+     *
+     * The status guard lives in the update filter so the check-and-write is a
+     * single atomic operation; once the worker has moved the job out of
+     * PENDING, this update matches nothing and cannot overwrite its results
+     * (ticket #4521).
+     */
+    async updateJobIfPending(jobId: string, updates: Partial<AnalysisJob>): Promise<void> {
+        const collection = this.connection?.collection('analysis_jobs');
+        if (!collection) {
+            throw new Error('Database not connected');
+        }
+
+        await collection.updateOne(
+            { jobId, status: 'PENDING' },
+            { $set: { ...updates, updatedAt: new Date().toISOString() } },
+        );
+    }
 }

@@ -95,11 +95,13 @@ export class AnalysisService {
 
     /**
      * Refreshes the demographic data after the initial save.
-     * Ensures the pre-computed results are persisted correctly.
+     * Only applies while the job is still PENDING: the worker owns the
+     * document once processing starts, and this stale refresh must never
+     * overwrite its results (ticket #4521).
      */
     private async delayedUpdate(jobId: string, demographics: Demographics): Promise<void> {
         try {
-            await this.databaseService.updateJob(jobId, {
+            await this.databaseService.updateJobIfPending(jobId, {
                 demographics,
                 updatedAt: new Date().toISOString(),
             });
