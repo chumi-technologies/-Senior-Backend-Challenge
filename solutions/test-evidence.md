@@ -10,7 +10,7 @@ Command: `corepack pnpm --filter legacy-app test`
 > jest
 
 sh: jest: command not found
-/Users/as/.../chumi-challenge/apps/legacy-app:
+<repo>/apps/legacy-app:
  ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  legacy-app@1.0.0 test: `jest`
 spawn ENOENT
 ```
