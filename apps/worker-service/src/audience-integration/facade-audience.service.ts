@@ -8,6 +8,45 @@
 import { chromium, Browser, BrowserContext } from 'playwright';
 import { MockAuthPool } from './mock-auth-pool';
 
+export type AudiencePlatform = 'instagram' | 'tiktok';
+
+interface AudienceMetric {
+    label: string;
+    value: number;
+}
+
+export interface AudiencePayload {
+    gender?: AudienceMetric[];
+    age?: AudienceMetric[];
+    geography?: {
+        countries?: Array<{ name: string; code: string; percentage: number }>;
+    };
+}
+
+interface AudienceExtractor {
+    name: string;
+    extract: (response: unknown) => AudiencePayload | null;
+}
+
+const AUDIENCE_EXTRACTORS: AudienceExtractor[] = [
+    {
+        name: 'standard-v1',
+        extract: (response) => {
+            const root = asRecord(response);
+            const data = asRecord(root?.data);
+            return toAudiencePayload(data?.audience);
+        },
+    },
+    {
+        name: 'legacy-demographics',
+        extract: (response) => {
+            const root = asRecord(response);
+            const audienceData = asRecord(root?.audience_data);
+            return toAudiencePayload(audienceData?.demographics);
+        },
+    },
+];
+
 export class FacadeAudienceService {
     private authPool: MockAuthPool;
     private sharedBrowser: Browser | null = null;
@@ -19,15 +58,15 @@ export class FacadeAudienceService {
     /**
      * Fetches audience demographic data via Playwright browser context.
      *
-     * @param mediaType - instagram | tiktok
+     * @param mediaType - audience platform identifier
      * @param mediaId - The media/influencer ID to query
      * @param context - Optional shared browser context for batch operations
      */
     async getAudienceV1ByPlaywright(
-        mediaType: 'instagram' | 'tiktok',
+        mediaType: AudiencePlatform,
         mediaId: string,
         context?: BrowserContext,
-    ): Promise<any> {
+    ): Promise<AudiencePayload | null> {
         const url = `http://localhost:3001/api/v1/audience?media_type=${mediaType}&media_id=${mediaId}`;
 
         try {
@@ -67,11 +106,12 @@ export class FacadeAudienceService {
             console.log('[FacadeService] Raw response:', JSON.stringify(audienceData).substring(0, 200));
 
             // Extract audience demographics from response
-            const extracted = audienceData.data?.audience;
+            const extracted = this.extractAudienceData(audienceData, mediaType, mediaId);
 
             if (!extracted) {
-                console.error('[FacadeService] ⚠️ Audience data is NULL - why??');
+                console.error('[FacadeService] ⚠️ Audience data could not be extracted');
                 console.error('[FacadeService] Available keys:', Object.keys(audienceData));
+                console.error('[FacadeService] Tried extractors:', AUDIENCE_EXTRACTORS.map((extractor) => extractor.name).join(', '));
             }
 
             if (shouldCloseBrowser && browser) {
@@ -90,7 +130,7 @@ export class FacadeAudienceService {
      * Batch fetch audience data for multiple media IDs.
      * Uses Promise.all for concurrent requests.
      */
-    async batchGetAudience(requests: Array<{ mediaType: 'instagram' | 'tiktok'; mediaId: string }>) {
+    async batchGetAudience(requests: Array<{ mediaType: AudiencePlatform; mediaId: string }>) {
         console.log(`[FacadeService] Batch fetching ${requests.length} audience datasets`);
 
         const results = await Promise.all(
@@ -110,4 +150,41 @@ export class FacadeAudienceService {
             await this.sharedBrowser.close();
         }
     }
+
+    private extractAudienceData(
+        response: unknown,
+        mediaType: AudiencePlatform,
+        mediaId: string,
+    ): AudiencePayload | null {
+        for (const extractor of AUDIENCE_EXTRACTORS) {
+            const extracted = extractor.extract(response);
+            if (extracted) {
+                console.log(`[FacadeService] Extracted audience using ${extractor.name} for ${mediaType}:${mediaId}`);
+                return extracted;
+            }
+        }
+
+        return null;
+    }
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+    if (typeof value !== 'object' || value === null) {
+        return null;
+    }
+
+    return value as Record<string, unknown>;
+}
+
+function toAudiencePayload(value: unknown): AudiencePayload | null {
+    const record = asRecord(value);
+    if (!record) {
+        return null;
+    }
+
+    if (Array.isArray(record.gender) || Array.isArray(record.age) || asRecord(record.geography)) {
+        return record as AudiencePayload;
+    }
+
+    return null;
 }

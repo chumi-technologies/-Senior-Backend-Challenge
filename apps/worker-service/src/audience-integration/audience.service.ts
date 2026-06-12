@@ -5,14 +5,21 @@
  * of influencer audience data from the facade layer.
  */
 
-import { FacadeAudienceService } from './facade-audience.service';
+import { AudiencePayload, AudiencePlatform, FacadeAudienceService } from './facade-audience.service';
+
+type InfluencerAudienceIds = Partial<Record<`${AudiencePlatform}_id`, string>>;
+
+const PLATFORM_ID_FIELDS: Record<AudiencePlatform, keyof InfluencerAudienceIds> = {
+    instagram: 'instagram_id',
+    tiktok: 'tiktok_id',
+};
 
 interface UnifiedAudienceData {
-    platform: string;
+    platform: AudiencePlatform;
     mediaId: string;
-    gender?: Array<{ label: string; value: number }>;
-    age?: Array<{ label: string; value: number }>;
-    geography?: any;
+    gender?: AudiencePayload['gender'];
+    age?: AudiencePayload['age'];
+    geography?: AudiencePayload['geography'];
 }
 
 export class AudienceService {
@@ -28,7 +35,7 @@ export class AudienceService {
      * Results are cached to avoid redundant API calls.
      */
     async fetchAudienceData(
-        platform: 'instagram' | 'tiktok',
+        platform: AudiencePlatform,
         mediaId: string,
         options: { forceRefresh?: boolean } = {},
     ): Promise<UnifiedAudienceData | null> {
@@ -86,7 +93,7 @@ export class AudienceService {
      * Batch fetch audience data for multiple influencers.
      */
     async batchFetchAudienceData(
-        influencerData: Array<{ instagram_id?: string; tiktok_id?: string }>,
+        influencerData: InfluencerAudienceIds[],
     ) {
         console.log(`[AudienceService] Batch fetching for ${influencerData.length} influencers`);
 
@@ -95,15 +102,15 @@ export class AudienceService {
 
         for (const data of influencerData) {
             try {
-                if (data.instagram_id) {
-                    const result = await this.fetchAudienceData('instagram', data.instagram_id);
+                for (const [platform, idField] of Object.entries(PLATFORM_ID_FIELDS) as Array<[AudiencePlatform, keyof InfluencerAudienceIds]>) {
+                    const mediaId = data[idField];
+                    if (!mediaId) {
+                        continue;
+                    }
+
+                    const result = await this.fetchAudienceData(platform, mediaId);
                     if (result) results.push(result);
-                    else errors.push({ platform: 'instagram', mediaId: data.instagram_id });
-                }
-                if (data.tiktok_id) {
-                    const result = await this.fetchAudienceData('tiktok', data.tiktok_id);
-                    if (result) results.push(result);
-                    else errors.push({ platform: 'tiktok', mediaId: data.tiktok_id });
+                    else errors.push({ platform, mediaId });
                 }
             } catch (error) {
                 console.error('[AudienceService] Batch item failed:', (error as Error).message);

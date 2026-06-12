@@ -1,4 +1,4 @@
-# WebGPT Review Notes — Capture & Replay and Part 2 Consistency Fix
+# WebGPT Review Notes — Challenge Solution Review
 
 ## Purpose
 
@@ -17,12 +17,13 @@ This repository is a backend interview challenge. It simulates an influencer mar
 - `debug-payloads/`: captured payloads and replay/debug samples.
 - `solutions/`: written analysis reports required by the challenge.
 
-The current branch contains four logical changes:
+The current branch contains five logical changes:
 
 1. Startup dependency fix: add missing `@senior-challenge/shared-types` workspace dependencies to the apps.
 2. Part 2 consistency fix: prevent delayed quick demographics from overwriting Worker results.
 3. Part 1 Capture & Replay: capture Worker input payloads and replay them locally.
 4. Part 3 chaos data processing: validate and classify third-party dirty data with Zod plus business rules.
+5. Part 4 audience integration fix: support known third-party response shapes via extractor registry.
 
 ## Part 1: Capture & Replay
 
@@ -313,6 +314,60 @@ Potential review questions:
 - Is writing one worker dead-letter JSON file per failed job sufficient, or should it use an append-only batch format?
 - Should Worker dead-letter files redact or truncate large `dataUrl` values now, or is documenting the risk enough for this challenge?
 
+## Part 4: Audience Data Integration
+
+### Problem Understanding
+
+The data team reported that around 5% of audience demographics are missing. The third-party API returns `200 OK`, but our system stores `null` for specific media IDs such as `12345`.
+
+The traced call chain is:
+
+```text
+run-audience-test.ts
+  -> AudienceService.fetchAudienceData()
+    -> FacadeAudienceService.getAudienceV1ByPlaywright()
+      -> mock-audience-api.ts
+```
+
+The root cause is a response shape mismatch:
+
+- Standard response uses `response.data.audience`.
+- Legacy response for `mediaId=12345` uses `response.audience_data.demographics`.
+- The old Facade code only read `audienceData.data?.audience`, so valid legacy data was treated as missing.
+
+### Design Decision
+
+We fixed this at the Facade boundary with a small extractor registry:
+
+```ts
+const AUDIENCE_EXTRACTORS = [
+  { name: 'standard-v1', extract: response => response.data?.audience },
+  { name: 'legacy-demographics', extract: response => response.audience_data?.demographics },
+];
+```
+
+Unknown shapes are not guessed. If no extractor matches, the Facade logs the top-level keys and the extractor names that were tried. A human can then confirm semantics and add another named extractor.
+
+To address the extension requirement for `youtube`, `twitter`, and `linkedin`, `AudienceService.batchFetchAudienceData` now iterates a platform/id-field registry instead of hardcoding one `if` per platform. Runtime support remains intentionally limited to the verified platforms, `instagram` and `tiktok`; future platforms should be added to this registry only after API support and tests are confirmed.
+
+```ts
+const PLATFORM_ID_FIELDS = {
+  instagram: 'instagram_id',
+  tiktok: 'tiktok_id',
+  // future, after API support and tests are verified:
+  // youtube: 'youtube_id',
+  // twitter: 'twitter_id',
+  // linkedin: 'linkedin_id',
+};
+```
+
+Potential review questions:
+
+- Is the extractor registry the right level of abstraction for this challenge, or is direct fallback path extraction simpler?
+- Should unknown audience shapes be written to a failed payload directory, similar to Part 3, or is logging enough here?
+- Does the platform/id-field registry sufficiently satisfy the "new platform without core logic changes" requirement while avoiding premature runtime support for unverified platforms?
+- Should `AudiencePayload` validation be stricter before returning extracted data?
+
 ## Validation Already Run
 
 Commands run locally:
@@ -323,6 +378,7 @@ pnpm --filter legacy-app build
 pnpm --filter worker-service build
 pnpm run replay -- --file=debug-payloads/analysis-requested-naming-example-20260410-143201000Z.json
 pnpm run process:chaos
+pnpm simulate:audience-bug
 ```
 
 Capture/replay demonstration:
@@ -342,6 +398,8 @@ Runtime changes:
 - `apps/legacy-app/src/analysis/analysis.service.ts`
 - `apps/legacy-app/src/shared/database/database.service.ts`
 - `scripts/process-chaos.ts`
+- `apps/worker-service/src/audience-integration/audience.service.ts`
+- `apps/worker-service/src/audience-integration/facade-audience.service.ts`
 
 Tests and config:
 
@@ -355,6 +413,7 @@ Docs and samples:
 - `solutions/part1-replay-tool.md`
 - `solutions/part2-analysis.md`
 - `solutions/part3-observability.md`
+- `solutions/part4-audience-trace.md`
 - `debug-payloads/analysis-requested-naming-example-20260410-143201000Z.json`
 - `debug-payloads/chaos-data-samples.json`
 - `.gitignore`
@@ -373,6 +432,8 @@ Please review the implementation for:
 8. Whether the Part 3 valid/normalized/degraded/rejected classification is reasonable.
 9. Whether the Zod + business-rule split is appropriate.
 10. Whether the documented `dataUrl` size/redaction risk should be implemented now.
-11. Any simpler or more idiomatic TypeScript/NestJS approach that would better fit this codebase.
+11. Whether the Part 4 extractor registry is an appropriate minimal compatibility layer.
+12. Whether the Part 4 platform registry is enough for the stated extensibility requirement.
+13. Any simpler or more idiomatic TypeScript/NestJS approach that would better fit this codebase.
 
 Please avoid broad rewrites unless they are necessary. Prefer minimal, challenge-appropriate changes with clear validation.
