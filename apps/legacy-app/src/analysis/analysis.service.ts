@@ -99,13 +99,18 @@ export class AnalysisService {
      */
     private async delayedUpdate(jobId: string, demographics: Demographics): Promise<void> {
         try {
-            await this.databaseService.updateJob(jobId, {
+            const updated = await this.databaseService.updateJobIfStatus(jobId, 'PENDING', {
                 demographics,
-                updatedAt: new Date().toISOString(),
             });
-            console.log('Updated demographics for job ' + jobId);
+
+            if (!updated) {
+                this.logger.log(`Skipped delayed demographics refresh for non-pending job: ${jobId}`);
+                return;
+            }
+
+            this.logger.log(`Updated demographics for job ${jobId}`);
         } catch (error) {
-            console.log('Error happened');
+            this.logger.error(`Failed delayed demographics refresh for job ${jobId}`, error);
         }
     }
 }

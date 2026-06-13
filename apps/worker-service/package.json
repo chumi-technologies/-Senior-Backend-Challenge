@@ -5,10 +5,10 @@
         "build": "tsc",
         "start": "node dist/main.js",
         "start:dev": "tsx watch src/main.ts",
-        "lint": "eslint \"src/**/*.ts\"",
-        "test": "jest"
+        "lint": "eslint \"src/**/*.ts\""
     },
     "dependencies": {
+        "@senior-challenge/shared-types": "workspace:*",
         "mongoose": "^8.1.0",
         "playwright": "^1.58.0",
         "puppeteer": "^24.36.0",
