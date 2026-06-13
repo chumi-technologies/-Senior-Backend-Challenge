@@ -234,3 +234,33 @@ Reused the recorded rollout snapshot and urgent ticket constraints to draft `sol
 
 ### Remaining risks
 - Live operator commands and real environment smoke checks still need to happen outside this repository before any actual production rollout.
+
+## 2026-06-13 13:18 — Draft surgical refactor plan and scale plan
+
+### User prompt / intent
+Continue after the rollout analysis and finish the remaining planning documents in the required order.
+
+### AI action
+Read the refactor and scale templates plus the worker hot-path code, identified `QueuePoller.pollLoop()` as the smallest realistic refactor target, and drafted `solutions/refactor-plan.md` and `solutions/scale-plan.md`. Chose chunking plus bounded parallel workers as the minimum viable scale change instead of a Rust rewrite or full Kubernetes migration.
+
+### Files inspected
+- `solutions/refactor-plan.md`
+- `solutions/scale-plan.md`
+- `apps/worker-service/src/queue-poller.ts`
+- `apps/worker-service/src/processors/analysis.processor.ts`
+- `apps/worker-service/src/main.ts`
+- `packages/shared-types/src/types.ts`
+
+### Commands run
+- None
+
+### Assumptions
+- The current worker shape is intentionally simple and bottlenecked; the nearest safe refactor target is the inline "process one queue file" unit inside `pollLoop()`.
+- The scale target can be met faster by chunking and horizontal concurrency than by changing languages or orchestration platforms.
+
+### Human corrections / decisions
+- Human asked to continue in order rather than jump ahead to verification.
+- AI rejected broad rewrite ideas and kept the refactor plan limited to one helper extraction boundary.
+
+### Remaining risks
+- No code or tests have been added yet for the refactor plan; these documents describe the intended smallest changes and operational strategy only.
