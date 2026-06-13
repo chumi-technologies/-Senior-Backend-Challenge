@@ -132,6 +132,8 @@ update: {
 upsert: true
 ```
 
+That filter prevents duplicate row documents, but it is not enough by itself for at-least-once retries. Row-result writes also need write ownership: include the active shard attempt or lease version in the update guard, or make terminal transitions monotonic so a stale retry cannot replace a successful row result with a later transient failure. Otherwise a customer report can regress after a newer shard attempt has already produced the correct row result.
+
 Shard progress updates should also be conditional. A stale retry must not overwrite a newer terminal shard state. This is the same write-ownership principle used in the Part 4 delayed-update fix.
 
 The final report should be idempotent as well:

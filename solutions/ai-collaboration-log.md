@@ -356,3 +356,190 @@ Completed `solutions/scale-plan.md` with a fuller but bounded architecture plan:
 
 ### Remaining risks
 - This is an architecture plan rather than implemented batch infrastructure; actual feasibility still depends on provider quota, MongoDB write limits, and load-test results.
+
+## 2026-06-13 20:33 — WebGPT final review handoff prepared
+
+### User prompt / intent
+User requested a repomix package and diff patch so WebGPT can perform a final static review of the completed submission.
+
+### AI action
+Generated a focused `core` repomix bundle, a full patch from the pre-work base to the current worktree, a WebGPT handoff prompt, and a file manifest. The prompt asks for static review of business semantics, rollout safety, the delayed-overwrite fix, the scale plan, and submission credibility.
+
+### Files inspected
+- `solutions/ai-collaboration-log.md`
+- `solutions/scale-plan.md`
+- `apps/legacy-app/src/analysis/analysis.service.ts`
+- `apps/legacy-app/src/shared/database/database.service.ts`
+- `apps/legacy-app/test/bug-repro.spec.ts`
+
+### Commands run
+- `git diff --name-status 8275d92..HEAD`
+- Repomix handoff helper to generate a temporary static review bundle.
+- `git diff 8275d92 --` redirected to a temporary review patch.
+- Handoff artifact consistency/privacy check.
+
+### Assumptions
+- WebGPT is a static reviewer and should receive both repository context and the exact patch, without being asked to run commands.
+
+### Human corrections / decisions
+- Human directed using repomix for the relevant code and agreed that a diff patch is better for reviewing the actual modifications.
+
+### Remaining risks
+- WebGPT may still miss runtime-only issues because the handoff package is for static review.
+
+## 2026-06-13 20:53 — WebGPT final review feedback triaged
+
+### User prompt / intent
+User shared WebGPT's final review feedback for triage.
+
+### AI action
+Read the review response and classified the findings into likely fixes, optional documentation/test improvements, and acceptable risks.
+
+### Files inspected
+- External WebGPT review feedback.
+
+### Commands run
+- Read the WebGPT review feedback.
+- Searched the feedback for severity markers and recommended fixes.
+
+### Assumptions
+- WebGPT feedback should be treated as review input, not automatically accepted without checking fit against the repository and submission goals.
+
+### Human corrections / decisions
+- Human asked for details on the characterization-test recommendation before accepting any change.
+
+### Remaining risks
+- Accepted review items still need to be translated into repository changes.
+
+## 2026-06-13 21:01 — First two WebGPT review items addressed
+
+### User prompt / intent
+User asked for a detailed explanation of the Part 4 characterization-test recommendation, then approved fixing the first two WebGPT findings.
+
+### AI action
+Removed the worker-service's unconfigured Jest test entry, and strengthened the Part 4 regression test to assert the preserved create-analysis behavior before checking the delayed-overwrite guard.
+
+### Files inspected
+- `apps/worker-service/package.json`
+- `apps/legacy-app/src/analysis/analysis.service.ts`
+- `apps/legacy-app/test/bug-repro.spec.ts`
+- `solutions/refactor-plan.md`
+
+### Commands run
+- `sed -n '1,220p' apps/legacy-app/src/analysis/analysis.service.ts`
+- `cat apps/worker-service/package.json`
+- `sed -n '1,180p' apps/legacy-app/test/bug-repro.spec.ts`
+
+### Assumptions
+- Since worker-service has no current tests, removing its unconfigured Jest entry is cleaner than adding unused Jest dependencies and config.
+- Part 4 characterization should stay inside the existing direct service test rather than introducing a heavier Nest testing module.
+
+### Human corrections / decisions
+- Human accepted fixing the worker-service test entry and the Part 4 characterization assertions first, then chose to remove the unconfigured test script rather than keep a no-test placeholder.
+
+### Remaining risks
+- Additional WebGPT suggestions, including the Part 5 stale-retry wording and possible AI-log wording refinement, remain undecided.
+
+## 2026-06-13 21:09 — Part 5 stale retry guard clarified
+
+### User prompt / intent
+User asked for a business-level explanation of the Part 5 row-level stale retry concern, then approved the documentation fix.
+
+### AI action
+Explained how an older shard attempt could overwrite a newer successful row result in an at-least-once queue system, then updated the scale plan to require row-level write ownership or monotonic terminal transitions.
+
+### Files inspected
+- `solutions/scale-plan.md`
+
+### Commands run
+- `sed -n '115,150p' solutions/scale-plan.md`
+
+### Assumptions
+- The fix should stay as a small architecture-plan clarification rather than expanding Part 5 into an implementation plan.
+
+### Human corrections / decisions
+- Human accepted adding the stale-retry guard after reviewing the business impact.
+
+### Remaining risks
+- This remains a design requirement; actual implementation would need tests around shard attempt ownership and row-result transition rules.
+
+## 2026-06-13 21:21 — Legacy test editor typings fixed
+
+### User prompt / intent
+User noticed VSCode showed many Jest global type errors in the legacy-app bug reproduction test and asked whether that was reasonable.
+
+### AI action
+Confirmed the command-line test passed but the editor lacked a test TypeScript project with Jest globals. Added a dedicated legacy-app test tsconfig and pointed Jest's ts-jest transform at it so VSCode and the test runner share the same Jest/Node typings.
+
+### Files inspected
+- `apps/legacy-app/tsconfig.json`
+- `apps/legacy-app/jest.config.js`
+- `apps/legacy-app/package.json`
+- `apps/legacy-app/test/bug-repro.spec.ts`
+
+### Commands run
+- `pnpm --filter legacy-app exec tsc -p test/tsconfig.json --noEmit`
+- `pnpm --filter legacy-app test`
+- `pnpm run build`
+- `pnpm run verify:submission`
+
+### Assumptions
+- Production build config should continue to include only `src/**/*`; test typings should be isolated to the test TypeScript project.
+
+### Human corrections / decisions
+- Human flagged the VSCode diagnostics before submission.
+
+### Remaining risks
+- VSCode may need a TypeScript server reload before the red squiggles disappear.
+
+## 2026-06-13 21:25 — Uncommitted changes review
+
+### User prompt / intent
+User asked for a review of the current uncommitted changes across staged, unstaged, and untracked files.
+
+### AI action
+Inspected the worktree diff, reviewed surrounding implementation and config, and ran the relevant workspace test/typecheck commands to validate whether the changes introduced actionable problems.
+
+### Files inspected
+- `apps/legacy-app/jest.config.js`
+- `apps/legacy-app/test/bug-repro.spec.ts`
+- `apps/legacy-app/test/tsconfig.json`
+- `apps/legacy-app/tsconfig.json`
+- `apps/legacy-app/src/analysis/analysis.service.ts`
+- `apps/worker-service/package.json`
+- `package.json`
+- `solutions/scale-plan.md`
+- `solutions/ai-collaboration-log.md`
+
+### Commands run
+- `git status --short`
+- `git diff -- apps/legacy-app/jest.config.js apps/legacy-app/test/bug-repro.spec.ts apps/worker-service/package.json apps/legacy-app/test/tsconfig.json solutions/scale-plan.md`
+- `git diff --cached -- apps/legacy-app/jest.config.js apps/legacy-app/test/bug-repro.spec.ts apps/worker-service/package.json apps/legacy-app/test/tsconfig.json solutions/scale-plan.md`
+- `git diff -- solutions/ai-collaboration-log.md`
+- `sed -n '1,220p' apps/legacy-app/src/analysis/analysis.service.ts`
+- `sed -n '1,220p' apps/legacy-app/tsconfig.json`
+- `sed -n '1,220p' apps/legacy-app/test/tsconfig.json`
+- `sed -n '1,220p' apps/legacy-app/jest.config.js`
+- `cat apps/worker-service/package.json`
+- `cat package.json`
+- `rg -n 'worker-service|legacy-app|verify:submission|pnpm --filter' -S .`
+- `pnpm -r test`
+- `pnpm --filter legacy-app exec tsc -p test/tsconfig.json --noEmit`
+- `nl -ba apps/legacy-app/test/bug-repro.spec.ts | sed -n '1,180p'`
+- `nl -ba apps/legacy-app/jest.config.js | sed -n '1,120p'`
+- `nl -ba apps/legacy-app/test/tsconfig.json | sed -n '1,120p'`
+- `nl -ba apps/worker-service/package.json | sed -n '1,120p'`
+- `rg -n 'worker-service.+test|pnpm -r test|pnpm run test|--filter worker-service test|apps/worker-service.*test' README.md AGENTS.md scripts apps solutions package.json`
+- `ls -la apps/worker-service`
+- `rg --files apps/worker-service`
+- `date '+%Y-%m-%d %H:%M %Z'`
+
+### Assumptions
+- The review should focus on the code and document changes currently present in the worktree, not on previously discussed but already-merged ideas.
+- A review finding should be emitted only if it is a concrete issue the author would likely want to fix.
+
+### Human corrections / decisions
+- No corrections during this review step.
+
+### Remaining risks
+- Review conclusions are limited to static inspection plus the executed workspace test/typecheck commands; no broader runtime or deployment validation was performed.

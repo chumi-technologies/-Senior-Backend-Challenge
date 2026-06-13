@@ -5,8 +5,7 @@
         "build": "tsc",
         "start": "node dist/main.js",
         "start:dev": "tsx watch src/main.ts",
-        "lint": "eslint \"src/**/*.ts\"",
-        "test": "jest"
+        "lint": "eslint \"src/**/*.ts\""
     },
     "dependencies": {
         "@senior-challenge/shared-types": "workspace:*",

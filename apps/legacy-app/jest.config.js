@@ -5,10 +5,7 @@ module.exports = {
     '^.+\\.ts$': [
       'ts-jest',
       {
-        tsconfig: {
-          rootDir: '.',
-          types: ['jest', 'node'],
-        },
+        tsconfig: '<rootDir>/test/tsconfig.json',
       },
     ],
   },

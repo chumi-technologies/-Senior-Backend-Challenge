@@ -52,10 +52,31 @@ describe('Data Consistency (Bug Repro)', () => {
   });
 
   it('does not let the delayed quick refresh overwrite completed worker demographics', async () => {
-    await service.createAnalysis({
+    const createRequest = {
       userId: 'user-4521',
       dataUrl: 's3://analysis-inputs/customer-4521.json',
-    });
+    };
+
+    const job = await service.createAnalysis(createRequest);
+
+    expect(databaseService.saveJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: job.jobId,
+        userId: createRequest.userId,
+        dataUrl: createRequest.dataUrl,
+        status: 'PENDING',
+        demographics: expect.objectContaining({ confidence: 0.3 }),
+      }),
+    );
+    expect(messageQueueService.publishEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'AnalysisRequested',
+        jobId: job.jobId,
+        userId: createRequest.userId,
+        dataUrl: createRequest.dataUrl,
+        timestamp: expect.any(String),
+      }),
+    );
 
     const workerDemographics: Demographics = {
       ageRange: '25-34',
