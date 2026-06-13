@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import type { AnalysisRequestedEvent, AnalysisJob, Demographics, ThirdPartyApiResponse } from '@senior-challenge/shared-types';
 import type { MessageProcessor } from './processor.interface';
+import { calculateAgeRange } from './age-range';
 
 const MONGODB_URI = process.env.MONGODB_URI ?? 'mongodb://localhost:27017/analysis_db';
 
@@ -112,24 +113,12 @@ export class AnalysisProcessor implements MessageProcessor {
         const data = response.data!;
 
         return {
-            ageRange: this.calculateAgeRange(data.age as number),
+            ageRange: calculateAgeRange(data.age as number),
             gender: data.gender as string,
             location: data.country as string,
             interests: data.tags as string[],
             confidence: data.score as number,
         };
-    }
-
-    /**
-     * Maps a numeric age to a standard age range bucket.
-     */
-    private calculateAgeRange(age: number): string {
-        if (age < 18) return 'under-18';
-        if (age < 25) return '18-24';
-        if (age < 35) return '25-34';
-        if (age < 45) return '35-44';
-        if (age < 55) return '45-54';
-        return '55+';
     }
 
     private async updateJobStatus(jobId: string, status: string): Promise<void> {
