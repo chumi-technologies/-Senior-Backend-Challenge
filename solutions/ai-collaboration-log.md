@@ -144,3 +144,105 @@ Wrote `release-command-log.md` and `part2-release-interruption.md` (freeze Phase
 
 ### Remaining risks
 - Phase 1 still unverified and must be re-released separately later.
+
+## 2026-06-13 23:59 — Fork/PR publish path inspection
+
+### User prompt / intent
+User requested the fork route for publishing: if this checkout has only read access, fork the repository, push the branch to the fork, then open a cross-repository PR.
+
+### AI action
+Checked local branch/remotes, GitHub CLI availability, GitHub auth availability, existing solution files, current branch history, and direct push permission. Determined the current branch has one local commit (`e61c030`) beyond `origin/main` and direct push to `origin` is denied for the current GitHub SSH identity.
+
+### Files inspected
+- `solutions/ai-collaboration-log.md`
+- `solutions/` directory listing
+
+### Commands run
+- `git status -sb`
+- `git remote -v`
+- `git branch --show-current`
+- `gh --version`
+- `gh auth status`
+- `ls solutions`
+- `date '+%Y-%m-%d %H:%M'`
+- `git rev-parse --abbrev-ref --symbolic-full-name @{u}`
+- `git log --oneline --decorate --max-count=12`
+- `git branch -vv`
+- `git diff --stat`
+- `tail -n 80 solutions/ai-collaboration-log.md`
+- `git push --dry-run -u origin codex/ai-release-challenge-hardening`
+- `env | rg '^(GH|GITHUB)_'`
+- `command -v brew`
+- `command -v hub`
+- `git config --get remote.origin.url`
+
+### Assumptions
+- The intended branch to publish is the current branch, `codex/ai-release-challenge-hardening`.
+- The intended upstream target is `chumi-technologies/-Senior-Backend-Challenge`, base branch `main`.
+
+### Human corrections / decisions
+- Human directed the fork-based publish strategy if write access is unavailable.
+
+### Remaining risks
+- `gh` is not installed, no GitHub API token is present in the shell environment, and the available GitHub connector tools expose PR creation but not repository forking. Fork creation may require an authenticated browser/API path or human action.
+
+## 2026-06-14 00:01 — Browser fork attempt blocked by login
+
+### User prompt / intent
+Continue the fork route after direct push was denied.
+
+### AI action
+Loaded the in-app browser workflow, opened GitHub's repository fork page, and confirmed it redirects to GitHub login. Determined that the browser route cannot create the fork without an authenticated GitHub session.
+
+### Files inspected
+- `solutions/ai-collaboration-log.md`
+
+### Commands run
+- `tool_search` for GitHub fork/PR tooling
+- `tool_search` for browser tooling
+- In-app browser navigation to `https://github.com/chumi-technologies/-Senior-Backend-Challenge/fork`
+- `date '+%Y-%m-%d %H:%M'`
+- `git status -sb`
+- `git diff -- solutions/ai-collaboration-log.md`
+
+### Assumptions
+- Browser-side GitHub authentication is required to create a fork through the web UI.
+- The current shell cannot create the fork through GitHub CLI because `gh` is unavailable and no `GITHUB_TOKEN`/`GH_TOKEN` is present.
+
+### Human corrections / decisions
+- Human had already authorized creating the fork and cross-repository PR if needed.
+
+### Remaining risks
+- Fork creation and cross-repository PR creation remain blocked until an authenticated GitHub path is available.
+
+## 2026-06-14 00:02 — Submission verification after publish-path logging
+
+### User prompt / intent
+Keep the fork/PR publish attempt auditable while preserving submission validity.
+
+### AI action
+Ran the repository submission verifier after appending fork-path log entries. Confirmed the verifier still passes and confirmed the local SSH-authenticated GitHub identity is `1625567290`, which authenticates successfully but does not have write permission to `chumi-technologies/-Senior-Backend-Challenge`. Checked for an existing fork at `1625567290/-Senior-Backend-Challenge`; GitHub reported that repository was not found.
+
+### Files inspected
+- `solutions/ai-collaboration-log.md`
+
+### Commands run
+- `pnpm run verify:submission`
+- `ssh -T -o BatchMode=yes git@github.com`
+- `date '+%Y-%m-%d %H:%M'`
+- `git diff --check`
+- `git status -sb`
+- `git diff --stat`
+- `git add solutions/ai-collaboration-log.md`
+- `git commit -m "docs: record fork publish attempt"`
+- `git log --oneline --decorate --max-count=5`
+- `git ls-remote git@github.com:1625567290/-Senior-Backend-Challenge.git HEAD`
+
+### Assumptions
+- It is appropriate to commit the collaboration-log update locally so the branch remains self-contained for a later fork push.
+
+### Human corrections / decisions
+- Human directed the fork route; no semantic correction was made during this step.
+
+### Remaining risks
+- The fork itself and cross-repository PR are still blocked until GitHub authentication with fork/create-PR capability is available through `gh`, browser login, or another GitHub API route.
