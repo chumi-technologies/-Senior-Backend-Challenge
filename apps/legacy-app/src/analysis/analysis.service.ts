@@ -33,7 +33,7 @@ export class AnalysisService {
 
         // Pre-compute quick demographics so the user gets immediate feedback
         // while the full pipeline is processing via the Worker
-        const quickDemographics = this.calculateQuickDemographics(dto.userId);
+        const quickDemographics = this.calculateQuickDemographics();
 
         const job: AnalysisJob = {
             jobId,
@@ -60,11 +60,10 @@ export class AnalysisService {
 
         await this.messageQueueService.publishEvent(event);
 
-        // Refresh the preliminary demographics after a short delay
-        // to ensure the pre-computed data is consistent
-        setTimeout(() => {
-            this.delayedUpdate(jobId, quickDemographics);
-        }, 2000);
+        // The worker (AnalysisProcessor) is the single source of truth for a job's
+        // final demographics. We intentionally do NOT schedule a delayed re-write of
+        // the pre-computed placeholder here: that raced with and overwrote the
+        // worker's COMPLETED result (lost update, ticket #4521).
 
         return job;
     }
@@ -80,7 +79,7 @@ export class AnalysisService {
      * Quick demographic estimation based on user profile heuristics.
      * Provides immediate feedback while the full analysis pipeline runs.
      */
-    private calculateQuickDemographics(userId: string): Demographics {
+    private calculateQuickDemographics(): Demographics {
         const ageRanges = ['18-24', '25-34', '35-44', '45-54'];
         const genders = ['male', 'female', 'other'];
         const locations = ['US', 'UK', 'CA', 'AU'];
@@ -91,21 +90,5 @@ export class AnalysisService {
             location: locations[Math.floor(Math.random() * locations.length)],
             confidence: 0.3,
         };
-    }
-
-    /**
-     * Refreshes the demographic data after the initial save.
-     * Ensures the pre-computed results are persisted correctly.
-     */
-    private async delayedUpdate(jobId: string, demographics: Demographics): Promise<void> {
-        try {
-            await this.databaseService.updateJob(jobId, {
-                demographics,
-                updatedAt: new Date().toISOString(),
-            });
-            console.log('Updated demographics for job ' + jobId);
-        } catch (error) {
-            console.log('Error happened');
-        }
     }
 }
