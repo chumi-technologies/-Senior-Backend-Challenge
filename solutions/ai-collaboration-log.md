@@ -175,3 +175,33 @@ Collected a repository-local Git name and email from the human and prepared to c
 
 ### Remaining risks
 - If later commits need a different identity or signed-commit policy, Git configuration may need to be revisited.
+
+## 2026-06-13 12:50 — Draft Part 1 billing semantics report
+
+### User prompt / intent
+Continue after the initial spec-phase commit and complete the billing semantics report in the documented order.
+
+### AI action
+Searched the repository again for billing keywords, confirmed that explicit wallet or ledger implementation is not present in the inspected application code, and drafted `solutions/part1-billing-semantics.md` using the prompt, rollout artifacts, and previously defined semantic decisions.
+
+### Files inspected
+- `solutions/part1-billing-semantics.md`
+- `solutions/spec.md`
+- `solutions/decision-log.md`
+- `docs/CHALLENGE_BILLING_SEMANTICS.md`
+- `ops/urgent-phase2-ticket.md`
+- `ops/current-rollout-state.json`
+
+### Commands run
+- `rg -n "multiplier|wallet|ledger|prepaid|usage cost|official|actual cost|total usage cost|billing|debit" .`
+
+### Assumptions
+- The observed `$100.00` official usage and `$40.00` debit are consistent with the prepaid multiplier and therefore support a label/aggregate mismatch hypothesis.
+- The smallest safe fix remains in the reporting or display layer unless later code evidence proves the debit path is wrong.
+
+### Human corrections / decisions
+- Human asked to continue after clarifying that `spec.md` was only the first part of the broader billing work.
+- AI explicitly avoided fabricating nonexistent billing implementation details and instead marked retry/idempotency checks as follow-up evidence still needed if code changes are introduced.
+
+### Remaining risks
+- There is still no executable proof in the repository that retry paths cannot double debit; this must be tested if billing code is later modified.
