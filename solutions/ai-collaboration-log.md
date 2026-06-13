@@ -264,3 +264,31 @@ Read the refactor and scale templates plus the worker hot-path code, identified 
 
 ### Remaining risks
 - No code or tests have been added yet for the refactor plan; these documents describe the intended smallest changes and operational strategy only.
+
+## 2026-06-13 13:28 — Attempt submission verification and record environment blocker
+
+### User prompt / intent
+Continue after all required planning documents and verify the repository in the documented order.
+
+### AI action
+Committed the refactor and scale plans, then attempted to run the submission verification flow. Checked whether `pnpm` and `node` were available on PATH and searched common installation paths, but neither runtime was present in the current environment.
+
+### Files inspected
+- `solutions/refactor-plan.md`
+- `solutions/scale-plan.md`
+- `scripts/verify-submission.ts`
+
+### Commands run
+- `powershell -NoProfile -Command "& 'C:\Program Files\Git\cmd\git.exe' add solutions/refactor-plan.md solutions/scale-plan.md solutions/ai-collaboration-log.md; & 'C:\Program Files\Git\cmd\git.exe' commit -m 'docs: add refactor and scale plans'"`
+- `powershell -NoProfile -Command "pnpm --version"`
+- `powershell -NoProfile -Command "node --version"`
+- `$paths = @('C:\Program Files\nodejs\node.exe','C:\Program Files\nodejs\pnpm.cmd','C:\Program Files\nodejs\corepack.cmd','C:\Users\Administrator\AppData\Roaming\npm\pnpm.cmd','C:\Users\Administrator\AppData\Local\Programs\nodejs\node.exe'); foreach ($p in $paths) { if (Test-Path $p) { Write-Output $p } }`
+
+### Assumptions
+- `pnpm run verify:submission` cannot be executed until Node.js and pnpm are available in the environment.
+
+### Human corrections / decisions
+- Human asked to continue step-by-step; AI therefore attempted verification immediately after finishing the remaining required documents rather than stopping at documentation only.
+
+### Remaining risks
+- Final automated verification remains blocked by missing local runtime tools, so the submission is documented but not yet tool-verified in this environment.
