@@ -1,37 +1,32 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { AnalysisService } from '../src/analysis/analysis.service';
-import { DatabaseService } from '../src/shared/database/database.service';
-import { MessageQueueService } from '../src/shared/message-queue/message-queue.service';
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
+import { buildDashboardCostDisplay } from '../src/billing/dashboard-cost-display';
 
-/**
- * Bug Reproduction Test Suite
- *
- * Write automated tests here to reproduce and verify the data inconsistency
- * reported in customer support ticket #4521.
- */
-describe('Data Consistency (Bug Repro)', () => {
-  let service: AnalysisService;
+describe('billing display semantics', () => {
+  it('separates official list-price usage from prepaid wallet debit', () => {
+    const display = buildDashboardCostDisplay({
+      officialUsageCostCents: 10000,
+      prepaidMultiplier: 0.4,
+      providerBalanceCents: 250000,
+      loadBalancingWeight: 25,
+    });
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        AnalysisService,
-        {
-          provide: DatabaseService,
-          useValue: { /* TODO: implement mock */ },
-        },
-        {
-          provide: MessageQueueService,
-          useValue: { /* TODO: implement mock */ },
-        },
-      ],
-    }).compile();
-
-    service = module.get<AnalysisService>(AnalysisService);
+    assert.equal(display.officialUsageCostCents, 10000);
+    assert.equal(display.payablePrepaidDebitCents, 4000);
+    assert.equal(display.customerPrimaryLabel, 'Prepaid wallet debit');
+    assert.equal(display.customerPrimaryAmountCents, 4000);
+    assert.equal(display.officialUsageLabel, 'Official list-price usage');
   });
 
-  it('should reproduce the data overwrite issue before fix', async () => {
-    // TODO: Write your test here
-    throw new Error('Test not implemented');
+  it('does not use prepaid multiplier to change provider balance or routing weight', () => {
+    const display = buildDashboardCostDisplay({
+      officialUsageCostCents: 10000,
+      prepaidMultiplier: 0.4,
+      providerBalanceCents: 250000,
+      loadBalancingWeight: 25,
+    });
+
+    assert.equal(display.providerBalanceCents, 250000);
+    assert.equal(display.loadBalancingWeight, 25);
   });
 });
