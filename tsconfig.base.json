@@ -26,6 +26,9 @@
         "forceConsistentCasingInFileNames": true,
         "resolveJsonModule": true,
         "paths": {
+            "@senior-challenge/shared-types": [
+                "./packages/shared-types/src/index.ts"
+            ],
             "@shared/*": [
                 "./packages/shared-types/src/*"
             ]
