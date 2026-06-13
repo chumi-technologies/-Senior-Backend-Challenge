@@ -17,7 +17,7 @@
 
 Is this a wrong debit, wrong dashboard label, wrong aggregate, double billing bug, or something else?
 
-Answer: Based on the available evidence, this is most likely a wrong dashboard label or dashboard semantic mismatch, not a wrong debit and not yet a proven double-billing bug. The key evidence is that the observed values are mathematically consistent with the stated prepaid multiplier: official list-price usage is `$100.00`, multiplier is `0.4`, and wallet debit is `$40.00`. That ratio strongly suggests the debit path preserved prepaid semantics while the customer-facing phrase `Total usage cost` exposed the list-price aggregate in a place customers interpret as payable debit.
+Based on the available evidence, this is most likely a wrong dashboard label or dashboard semantic mismatch, not a wrong debit and not yet a proven double-billing bug. The key evidence is that the observed values are mathematically consistent with the stated prepaid multiplier: official list-price usage is `$100.00`, multiplier is `0.4`, and wallet debit is `$40.00`. That ratio strongly suggests the debit path preserved prepaid semantics while the customer-facing phrase `Total usage cost` exposed the list-price aggregate in a place customers interpret as payable debit.
 
 I would classify the incident as:
 

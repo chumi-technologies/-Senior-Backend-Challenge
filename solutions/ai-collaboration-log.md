@@ -292,3 +292,36 @@ Committed the refactor and scale plans, then attempted to run the submission ver
 
 ### Remaining risks
 - Final automated verification remains blocked by missing local runtime tools, so the submission is documented but not yet tool-verified in this environment.
+
+## 2026-06-13 13:42 — Install runtime tools and complete submission verification
+
+### User prompt / intent
+Find the required Node.js and pnpm versions from the repository, install them directly, and run the final verification.
+
+### AI action
+Confirmed the runtime requirements from `package.json`, installed Node.js LTS with `winget`, used `corepack` to run `pnpm@8.15.0`, installed workspace dependencies, fixed the final billing-report placeholder caught by the verifier, and reran `pnpm run verify:submission` successfully.
+
+### Files inspected
+- `package.json`
+- `pnpm-lock.yaml`
+- `README.md`
+- `scripts/verify-submission.ts`
+- `solutions/part1-billing-semantics.md`
+
+### Commands run
+- `winget install --id OpenJS.NodeJS.LTS --exact --source winget --accept-source-agreements --accept-package-agreements --silent`
+- `C:\Program Files\nodejs\node.exe --version`
+- `C:\Program Files\nodejs\corepack.cmd pnpm --version`
+- `$env:PATH = 'C:\Program Files\nodejs;' + $env:PATH; & 'C:\Program Files\nodejs\corepack.cmd' pnpm install`
+- `$env:PATH = 'C:\Program Files\nodejs;' + $env:PATH; & 'C:\Program Files\nodejs\corepack.cmd' pnpm run verify:submission`
+
+### Assumptions
+- Node.js 24 LTS is acceptable because the repository requires `node >=20.0.0`.
+- Using `corepack` directly is sufficient even though `pnpm.cmd` was not added to PATH automatically in the current shell.
+
+### Human corrections / decisions
+- Human explicitly asked to find the declared runtime versions, install them, and run verification rather than stopping at documentation.
+- AI corrected the verifier failure by removing the leftover `Answer:` placeholder from `solutions/part1-billing-semantics.md`.
+
+### Remaining risks
+- The submission now passes the repository verification script; any further work would be optional polish, tests, or code changes rather than missing required evidence.
