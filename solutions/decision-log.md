@@ -26,3 +26,12 @@
 - Rejected: rewriting historical ledger entries, changing official usage to `$40.00`, changing wallet debit to `$100.00`, adding another billing source of truth, or touching provider/routing state.
 - Risk: `Total usage cost` is ambiguous in a prepaid-wallet context.
 - Verification: Check official usage remains `$100.00`, wallet debit remains `$40.00`, customer balance changes by `$40.00`, provider balances and load-balancing weights are unchanged, and retry does not double debit.
+
+### 2026-06-13 17:48 — Phase 2 urgent patch base
+
+- Context: Phase 1 is live as public canary at 1% traffic, still observing, and not promoted. Its change area is prepaid usage reporting labels and dashboard aggregation. Phase 2 is an urgent display fix in the same business area.
+- Decision: Freeze Phase 1 and base the urgent Phase 2 patch on stable image `registry.example.com/gateway:phase0-a17f3d2`, not canary image `registry.example.com/gateway:phase1-b93c1a8`.
+- Source of truth: Rollout state comes from `ops/current-rollout-state.json`; billing display semantics come from the Part 1 decision.
+- Rejected: promoting Phase 1 during the incident, updating the public canary in place while it has traffic, or combining Phase 1 and Phase 2 into one release candidate.
+- Risk: Basing Phase 2 on Phase 1 would mix two variables in the same dashboard/prepaid area and make rollback/debugging unclear.
+- Verification: Confirm stable A can handle 100% traffic, keep canary maintenance jobs disabled, verify no billing/backfill/migration/aggregation writers run on canary, shift Phase 1 public traffic to zero before replacing it, smoke Phase 2 for availability and unchanged billing semantics, and keep stable A as rollback target.
