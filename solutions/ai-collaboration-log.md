@@ -38,8 +38,8 @@ User directed Part 1 work to start with business context and semantic alignment,
 Discussed the billing semantics before editing, aligned on `$100.00` as official list-price usage and `$40.00` as customer prepaid wallet debit, then updated `decision-log.md` before filling `part1-billing-semantics.md`.
 
 ### Files inspected
-- `/Users/david/Documents/github/-Senior-Backend-Challenge/solutions/decision-log.md`
-- `/Users/david/Documents/github/-Senior-Backend-Challenge/solutions/part1-billing-semantics.md`
+- `solutions/decision-log.md`
+- `solutions/part1-billing-semantics.md`
 
 ### Commands run
 - `sed -n '1,220p' solutions/decision-log.md`
@@ -70,9 +70,9 @@ User clarified deliverable sequencing between `spec.md` and `refactor-plan.md`, 
 Updated `solutions/spec.md` with the current Part 1 billing-incident understanding, source-of-truth map, root-cause hypotheses, non-goals, blast radius, validation plan, and AI recommendation review.
 
 ### Files inspected
-- `/Users/david/Documents/github/-Senior-Backend-Challenge/solutions/spec.md`
-- `/Users/david/Documents/github/-Senior-Backend-Challenge/solutions/decision-log.md`
-- `/Users/david/Documents/github/-Senior-Backend-Challenge/solutions/part1-billing-semantics.md`
+- `solutions/spec.md`
+- `solutions/decision-log.md`
+- `solutions/part1-billing-semantics.md`
 
 ### Commands run
 - `sed -n '1,260p' solutions/spec.md`
@@ -101,9 +101,9 @@ User requested a concision pass on the Part 1-related solution text.
 Shortened `spec.md`, `decision-log.md`, and `part1-billing-semantics.md` while preserving the agreed billing semantics and required verification points.
 
 ### Files inspected
-- `/Users/david/Documents/github/-Senior-Backend-Challenge/solutions/spec.md`
-- `/Users/david/Documents/github/-Senior-Backend-Challenge/solutions/decision-log.md`
-- `/Users/david/Documents/github/-Senior-Backend-Challenge/solutions/part1-billing-semantics.md`
+- `solutions/spec.md`
+- `solutions/decision-log.md`
+- `solutions/part1-billing-semantics.md`
 
 ### Commands run
 - `sed -n '1,220p' solutions/spec.md`
@@ -132,11 +132,11 @@ User confirmed the single-variable release principle for Phase 2 and approved dr
 Recorded the Phase 2 release decision in `decision-log.md`, filled the observed rollout snapshot and planned release sequence in `release-command-log.md`, and completed `part2-release-interruption.md`.
 
 ### Files inspected
-- `/Users/david/Documents/github/-Senior-Backend-Challenge/solutions/decision-log.md`
-- `/Users/david/Documents/github/-Senior-Backend-Challenge/solutions/release-command-log.md`
-- `/Users/david/Documents/github/-Senior-Backend-Challenge/solutions/part2-release-interruption.md`
-- `/Users/david/Documents/github/-Senior-Backend-Challenge/ops/current-rollout-state.json`
-- `/Users/david/Documents/github/-Senior-Backend-Challenge/ops/urgent-phase2-ticket.md`
+- `solutions/decision-log.md`
+- `solutions/release-command-log.md`
+- `solutions/part2-release-interruption.md`
+- `ops/current-rollout-state.json`
+- `ops/urgent-phase2-ticket.md`
 
 ### Commands run
 - `sed -n '1,260p' solutions/decision-log.md`
@@ -167,9 +167,9 @@ User requested an independent subagent review of the Part 2 release plan, then a
 Spawned a read-only subagent to review the Part 2 plan, then updated `release-command-log.md`, `part2-release-interruption.md`, and `decision-log.md` to add stable capacity confirmation, canary side-effect guards, per-phase rollback actions, and more concrete billing smoke assertions.
 
 ### Files inspected
-- `/Users/david/Documents/github/-Senior-Backend-Challenge/solutions/release-command-log.md`
-- `/Users/david/Documents/github/-Senior-Backend-Challenge/solutions/part2-release-interruption.md`
-- `/Users/david/Documents/github/-Senior-Backend-Challenge/solutions/decision-log.md`
+- `solutions/release-command-log.md`
+- `solutions/part2-release-interruption.md`
+- `solutions/decision-log.md`
 
 ### Commands run
 - Subagent review of Part 2 rollout plan; no files modified by subagent.
@@ -199,10 +199,10 @@ User commissioned an external agent review of the Part 2 docs and surfaced a spe
 Reviewed the cited lines, distinguished the direct evidence from the intended release guard, and revised the Part 2 docs to keep canary no-side-effects as a required check while framing billing jobs, migrations, ledger backfill, and aggregation writers as checklist items that still need verification.
 
 ### Files inspected
-- `/Users/david/Documents/github/-Senior-Backend-Challenge/solutions/release-command-log.md`
-- `/Users/david/Documents/github/-Senior-Backend-Challenge/solutions/part2-release-interruption.md`
-- `/Users/david/Documents/github/-Senior-Backend-Challenge/solutions/decision-log.md`
-- `/Users/david/Documents/github/-Senior-Backend-Challenge/ops/current-rollout-state.json`
+- `solutions/release-command-log.md`
+- `solutions/part2-release-interruption.md`
+- `solutions/decision-log.md`
+- `ops/current-rollout-state.json`
 
 ### Commands run
 - `nl -ba solutions/release-command-log.md | sed -n '1,140p'`
@@ -259,11 +259,11 @@ User accepted a narrowed implementation based on PR #2: prevent delayed quick de
 Recorded the source-of-truth decision, added an atomic status-guarded database update, changed `AnalysisService.delayedUpdate` to update only `PENDING` jobs, added focused regression tests, and filled the surgical refactor plan.
 
 ### Files inspected
-- `/Users/david/Documents/github/-Senior-Backend-Challenge/apps/legacy-app/src/analysis/analysis.service.ts`
-- `/Users/david/Documents/github/-Senior-Backend-Challenge/apps/legacy-app/src/shared/database/database.service.ts`
-- `/Users/david/Documents/github/-Senior-Backend-Challenge/apps/legacy-app/test/bug-repro.spec.ts`
-- `/Users/david/Documents/github/-Senior-Backend-Challenge/solutions/decision-log.md`
-- `/Users/david/Documents/github/-Senior-Backend-Challenge/solutions/refactor-plan.md`
+- `apps/legacy-app/src/analysis/analysis.service.ts`
+- `apps/legacy-app/src/shared/database/database.service.ts`
+- `apps/legacy-app/test/bug-repro.spec.ts`
+- `solutions/decision-log.md`
+- `solutions/refactor-plan.md`
 
 ### Commands run
 - `pnpm install`
@@ -291,14 +291,14 @@ User asked to re-review the current Part 4 change set against the repository req
 Reviewed the working tree diff, checked that the PR #2 reference wording no longer uses local paths or misleading "copy" framing, simplified the Jest config, and reran the focused test, full build, and submission verifier. No blocking issues were found.
 
 ### Files inspected
-- `/Users/david/Documents/github/-Senior-Backend-Challenge/apps/legacy-app/package.json`
-- `/Users/david/Documents/github/-Senior-Backend-Challenge/apps/legacy-app/jest.config.js`
-- `/Users/david/Documents/github/-Senior-Backend-Challenge/apps/legacy-app/src/analysis/analysis.service.ts`
-- `/Users/david/Documents/github/-Senior-Backend-Challenge/apps/legacy-app/src/shared/database/database.service.ts`
-- `/Users/david/Documents/github/-Senior-Backend-Challenge/apps/legacy-app/test/bug-repro.spec.ts`
-- `/Users/david/Documents/github/-Senior-Backend-Challenge/solutions/ai-collaboration-log.md`
-- `/Users/david/Documents/github/-Senior-Backend-Challenge/solutions/decision-log.md`
-- `/Users/david/Documents/github/-Senior-Backend-Challenge/solutions/refactor-plan.md`
+- `apps/legacy-app/package.json`
+- `apps/legacy-app/jest.config.js`
+- `apps/legacy-app/src/analysis/analysis.service.ts`
+- `apps/legacy-app/src/shared/database/database.service.ts`
+- `apps/legacy-app/test/bug-repro.spec.ts`
+- `solutions/ai-collaboration-log.md`
+- `solutions/decision-log.md`
+- `solutions/refactor-plan.md`
 
 ### Commands run
 - `git status --short`
@@ -320,3 +320,39 @@ Reviewed the working tree diff, checked that the PR #2 reference wording no long
 
 ### Remaining risks
 - The review did not exercise broader end-to-end worker flows or production MongoDB behavior beyond build and focused unit-style coverage.
+
+## 2026-06-13 19:20 — Part 5 scale plan adapted from PR #2
+
+### User prompt / intent
+User noted that Part 5 was already completed more fully in online PR [chumi-technologies/-Senior-Backend-Challenge#2](https://github.com/chumi-technologies/-Senior-Backend-Challenge/pull/2), then directed adapting the useful parts into the current repository while keeping the answer aligned with the local prompt and template.
+
+### AI action
+Completed `solutions/scale-plan.md` with a fuller but bounded architecture plan: throughput math, S3/CSV sharding, shard-pointer queue messages, bounded worker concurrency, idempotent bulk upsert, partial aggregation, debug strategy, non-goals, rollback/degrade behavior, SLO, and risk mitigations. Rechecked the current codebase so the plan references the existing `local-queue` SQS stand-in, preserves the single-job `AnalysisRequested` worker path, and introduces `AnalysisShardRequested` as an additional batch flow.
+
+### Files inspected
+- PR #2 Part 5 tradeoff content
+- `solutions/scale-plan.md`
+- `README.md`
+- `apps/legacy-app/src/shared/message-queue/message-queue.service.ts`
+- `apps/worker-service/src/processors/analysis.processor.ts`
+- `apps/worker-service/src/queue-poller.ts`
+
+### Commands run
+- Reviewed PR #2 Part 5 tradeoff content.
+- `nl -ba solutions/scale-plan.md | sed -n '1,140p'`
+- `nl -ba README.md | sed -n '209,236p'`
+- `rg -n "^##" solutions/scale-plan.md`
+- `rg -n "S3|SQS|Mongo|Analysis|AnalysisShardRequested|local-queue|Kubernetes|Rust|CSV|report" README.md package.json apps packages solutions/scale-plan.md`
+- `pnpm run verify:submission`
+
+### Assumptions
+- PR #2 contains a fuller Part 5 reference treatment. The current repository can use a detailed subjective architecture answer, but it must stay anchored to one engineer, two weeks, and the smallest architecture change that reaches the throughput target.
+- SQS is appropriate to discuss because the current local queue explicitly documents itself as a local development simulation of production SQS.
+
+### Human corrections / decisions
+- Human clarified that fuller objective architecture detail is acceptable when it stays within the local prompt and two-week constraint.
+- Human caught that the expanded answer should preserve the original seven-section `scale-plan.md` structure.
+- Human requested removing local filesystem paths from the collaboration log and framing the source as PR #2 rather than a local file.
+
+### Remaining risks
+- This is an architecture plan rather than implemented batch infrastructure; actual feasibility still depends on provider quota, MongoDB write limits, and load-test results.
