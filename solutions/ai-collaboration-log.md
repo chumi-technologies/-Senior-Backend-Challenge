@@ -205,3 +205,32 @@ Searched the repository again for billing keywords, confirmed that explicit wall
 
 ### Remaining risks
 - There is still no executable proof in the repository that retry paths cannot double debit; this must be tested if billing code is later modified.
+
+## 2026-06-13 13:05 — Draft interrupted rollout plan and release log
+
+### User prompt / intent
+Continue in the required order and complete the release interruption analysis after the billing semantics report.
+
+### AI action
+Reused the recorded rollout snapshot and urgent ticket constraints to draft `solutions/part2-release-interruption.md` and `solutions/release-command-log.md`. Chose to freeze Phase 1, unwind public traffic from canary image B, and base the urgent patch on stable image A rather than mutating the public canary in place.
+
+### Files inspected
+- `solutions/part2-release-interruption.md`
+- `solutions/release-command-log.md`
+- `ops/current-rollout-state.json`
+- `ops/urgent-phase2-ticket.md`
+- `docs/CHALLENGE_RELEASE_INTERRUPTION.md`
+
+### Commands run
+- None
+
+### Assumptions
+- No repository evidence proves the urgent patch must inherit all of Phase 1 canary image B.
+- Stable image A is therefore the safest rollback anchor for a customer-facing urgent fix under live canary traffic.
+
+### Human corrections / decisions
+- Human asked to continue directly into Part 2 after Part 1 was completed.
+- AI rejected the in-place canary patch approach because the canary already serves real public traffic and would blur rollback boundaries.
+
+### Remaining risks
+- Live operator commands and real environment smoke checks still need to happen outside this repository before any actual production rollout.
