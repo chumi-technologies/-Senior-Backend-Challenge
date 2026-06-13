@@ -7,7 +7,8 @@
         "start:dev": "nest start --watch",
         "start:prod": "node dist/main",
         "lint": "eslint \"{src,apps,libs,test}/**/*.ts\"",
-        "test": "jest"
+        "test": "jest",
+        "test:bug-repro": "tsx test/bug-repro.spec.ts"
     },
     "dependencies": {
         "@nestjs/common": "^10.3.0",

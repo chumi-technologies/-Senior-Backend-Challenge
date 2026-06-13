@@ -60,12 +60,10 @@ export class AnalysisService {
 
         await this.messageQueueService.publishEvent(event);
 
-        // Refresh the preliminary demographics after a short delay
-        // to ensure the pre-computed data is consistent
-        setTimeout(() => {
-            this.delayedUpdate(jobId, quickDemographics);
-        }, 2000);
-
+        // NOTE (ticket #4521): we intentionally do NOT re-write the preliminary
+        // demographics after a delay. The Worker is the source of truth for the
+        // full demographics result; a delayed write of the original pre-compute
+        // raced against — and overwrote — the Worker's COMPLETED result.
         return job;
     }
 
@@ -91,21 +89,5 @@ export class AnalysisService {
             location: locations[Math.floor(Math.random() * locations.length)],
             confidence: 0.3,
         };
-    }
-
-    /**
-     * Refreshes the demographic data after the initial save.
-     * Ensures the pre-computed results are persisted correctly.
-     */
-    private async delayedUpdate(jobId: string, demographics: Demographics): Promise<void> {
-        try {
-            await this.databaseService.updateJob(jobId, {
-                demographics,
-                updatedAt: new Date().toISOString(),
-            });
-            console.log('Updated demographics for job ' + jobId);
-        } catch (error) {
-            console.log('Error happened');
-        }
     }
 }
