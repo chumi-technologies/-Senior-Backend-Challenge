@@ -543,3 +543,38 @@ Inspected the worktree diff, reviewed surrounding implementation and config, and
 
 ### Remaining risks
 - Review conclusions are limited to static inspection plus the executed workspace test/typecheck commands; no broader runtime or deployment validation was performed.
+
+## 2026-06-13 21:33 — Pre-PR process review
+
+### User prompt / intent
+User requested a final process-oriented review before opening a PR, focused on required commands and workflow evidence.
+
+### AI action
+Checked commit metadata, required submission files, command evidence, root test/build/submission scripts, and whether common workspace commands still behave as expected after the final-review follow-up commit.
+
+### Files inspected
+- `README.md`
+- `package.json`
+- `scripts/verify-submission.ts`
+- `solutions/ai-collaboration-log.md`
+
+### Commands run
+- `git status --short`
+- `git log --oneline -n 8`
+- `git log -n 8 --pretty=format:'%h|%aI|%cI|%s'`
+- `pnpm test`
+- `pnpm --filter legacy-app exec tsc -p test/tsconfig.json --noEmit`
+- `pnpm --filter legacy-app test`
+- `pnpm run build`
+- `pnpm run verify:submission`
+- `pnpm -r lint`
+
+### Assumptions
+- `pnpm run verify:submission` is the required automatic submission check named by the README.
+- `pnpm -r lint` is useful process information but not a required submission gate in this repository.
+
+### Human corrections / decisions
+- Human clarified that the review should focus on process, required commands, and workflow evidence.
+
+### Remaining risks
+- `pnpm -r lint` currently fails because existing lint scripts reference `eslint`, but the repository does not include an ESLint CLI/config. This appears pre-existing and is not required by the README submission check.
