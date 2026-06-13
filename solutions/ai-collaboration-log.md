@@ -578,3 +578,33 @@ Checked commit metadata, required submission files, command evidence, root test/
 
 ### Remaining risks
 - `pnpm -r lint` currently fails because existing lint scripts reference `eslint`, but the repository does not include an ESLint CLI/config. This appears pre-existing and is not required by the README submission check.
+
+## 2026-06-13 21:47 — PR branch pushed and opened
+
+### User prompt / intent
+User asked to switch to the submission branch, push the completed work, and fill the PR content.
+
+### AI action
+Switched to `codex/ai-release-challenge-hardening`, confirmed the upstream branch was fast-forwardable but not writable with the current GitHub credentials, pushed the branch to the authenticated user's fork, and opened a pull request back to the upstream submission branch.
+
+### Files inspected
+- `solutions/ai-collaboration-log.md`
+
+### Commands run
+- `git branch --show-current`
+- `git ls-remote --heads origin codex/ai-release-challenge-hardening`
+- `git switch -c codex/ai-release-challenge-hardening`
+- `git push -u origin codex/ai-release-challenge-hardening`
+- `gh auth status`
+- `gh repo view yusifeng/-Senior-Backend-Challenge --json nameWithOwner,defaultBranchRef,url`
+- `git push -u fork codex/ai-release-challenge-hardening`
+- `gh pr create --repo chumi-technologies/-Senior-Backend-Challenge --base codex/ai-release-challenge-hardening --head yusifeng:codex/ai-release-challenge-hardening`
+
+### Assumptions
+- Because the authenticated account has read-only access to the upstream repository, the correct submission path is fork branch to upstream PR.
+
+### Human corrections / decisions
+- Human directed submission to the `codex/ai-release-challenge-hardening` branch and noted that PR content should be filled.
+
+### Remaining risks
+- The upstream branch could not be pushed directly without organization write permission; the PR uses the standard fork workflow instead.
