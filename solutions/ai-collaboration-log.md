@@ -220,3 +220,103 @@ Reviewed the cited lines, distinguished the direct evidence from the intended re
 
 ### Remaining risks
 - The actual release system would still need real checklist output proving non-maintenance production-writing jobs are disabled on canary.
+
+## 2026-06-13 18:41 — Read-only reference review of PR #2 Part 4 work
+
+### User prompt / intent
+User asked to reference the prior online PR [chumi-technologies/-Senior-Backend-Challenge#2](https://github.com/chumi-technologies/-Senior-Backend-Challenge/pull/2), which already includes this Part 4 task with a more rigorous and heavier implementation, and then adapt only the necessary pieces for this repository.
+
+### AI action
+Reviewed the relevant PR commit range and delegated a read-only subagent review. Both reviews treated PR #2 as a more complete reference implementation, then separated the minimum delayed-overwrite fix needed here from broader worker/replay/observability hardening that exceeds this repository's current requirements.
+
+### Files inspected
+- PR #2 commit diff for `apps/legacy-app/src/analysis/analysis.service.ts`
+- PR #2 commit diff for `apps/legacy-app/src/shared/database/database.service.ts`
+- PR #2 commit diff for `apps/legacy-app/test/bug-repro.spec.ts`
+- PR #2 later hardening diffs around worker recovery and replay tooling
+
+### Commands run
+- Reviewed PR #2 commit `48033a4` for the delayed demographics overwrite fix.
+- Compared the focused fix commit with the broader PR hardening range.
+- `multi_agent_v1.spawn_agent` / `multi_agent_v1.wait_agent`
+
+### Assumptions
+- PR #2 contains the more rigorous version of this Part 4 work; this repository should reference that implementation while intentionally narrowing the change to satisfy local challenge requirements.
+- Commit `48033a4` contains the focused delayed-overwrite fix, while the final cleanup commit has a small amount of adjacent logging/trace context; intervening commits may belong to other tasks and should not be treated as one Part 4 package.
+
+### Human corrections / decisions
+- Human clarified that PR #2 already covers this Part 4 task in a more rigorous form, but the current repository should only take the necessary parts required locally; readers who want the fuller treatment can inspect PR #2.
+
+### Remaining risks
+- The prior fix's test and behavior change landed together, so its git history does not prove a red-before-green characterization step.
+
+## 2026-06-13 18:53 — Part 4 delayed overwrite surgical fix
+
+### User prompt / intent
+User accepted a narrowed implementation based on PR #2: prevent delayed quick demographics from overwriting a newer worker result while leaving the broader, more rigorous PR #2 worker recovery/replay work out of this repository.
+
+### AI action
+Recorded the source-of-truth decision, added an atomic status-guarded database update, changed `AnalysisService.delayedUpdate` to update only `PENDING` jobs, added focused regression tests, and filled the surgical refactor plan.
+
+### Files inspected
+- `/Users/david/Documents/github/-Senior-Backend-Challenge/apps/legacy-app/src/analysis/analysis.service.ts`
+- `/Users/david/Documents/github/-Senior-Backend-Challenge/apps/legacy-app/src/shared/database/database.service.ts`
+- `/Users/david/Documents/github/-Senior-Backend-Challenge/apps/legacy-app/test/bug-repro.spec.ts`
+- `/Users/david/Documents/github/-Senior-Backend-Challenge/solutions/decision-log.md`
+- `/Users/david/Documents/github/-Senior-Backend-Challenge/solutions/refactor-plan.md`
+
+### Commands run
+- `pnpm install`
+- `pnpm --filter legacy-app test`
+- `pnpm --filter legacy-app build`
+- `pnpm run verify:submission`
+- `pnpm run build`
+
+### Assumptions
+- `analysis_jobs.status` is the write-ownership source of truth: delayed quick refresh owns only `PENDING`; worker-owned states must not be overwritten.
+- A direct service unit test is sufficient here; Nest testing module setup is unnecessary for this regression.
+
+### Human corrections / decisions
+- Human clarified that PR #2 is the fuller, more rigorous version of this task; the current repository intentionally keeps only the necessary changes to fit its local requirements.
+
+### Remaining risks
+- This fix addresses the delayed overwrite race only; broader worker retry, replay, leasing, and idempotency hardening remain outside this Part 4 scope.
+
+## 2026-06-13 19:13 — Pre-commit review of Part 4 changes
+
+### User prompt / intent
+User asked to re-review the current Part 4 change set against the repository requirements before preparing a commit.
+
+### AI action
+Reviewed the working tree diff, checked that the PR #2 reference wording no longer uses local paths or misleading "copy" framing, simplified the Jest config, and reran the focused test, full build, and submission verifier. No blocking issues were found.
+
+### Files inspected
+- `/Users/david/Documents/github/-Senior-Backend-Challenge/apps/legacy-app/package.json`
+- `/Users/david/Documents/github/-Senior-Backend-Challenge/apps/legacy-app/jest.config.js`
+- `/Users/david/Documents/github/-Senior-Backend-Challenge/apps/legacy-app/src/analysis/analysis.service.ts`
+- `/Users/david/Documents/github/-Senior-Backend-Challenge/apps/legacy-app/src/shared/database/database.service.ts`
+- `/Users/david/Documents/github/-Senior-Backend-Challenge/apps/legacy-app/test/bug-repro.spec.ts`
+- `/Users/david/Documents/github/-Senior-Backend-Challenge/solutions/ai-collaboration-log.md`
+- `/Users/david/Documents/github/-Senior-Backend-Challenge/solutions/decision-log.md`
+- `/Users/david/Documents/github/-Senior-Backend-Challenge/solutions/refactor-plan.md`
+
+### Commands run
+- `git status --short`
+- `git diff --stat`
+- `git diff -- apps/legacy-app/src/analysis/analysis.service.ts apps/legacy-app/src/shared/database/database.service.ts apps/legacy-app/test/bug-repro.spec.ts apps/legacy-app/jest.config.js apps/legacy-app/package.json solutions/ai-collaboration-log.md solutions/decision-log.md solutions/refactor-plan.md`
+- Checked the AI log for stale local-path or copy-framing wording around the PR #2 reference.
+- `cat apps/legacy-app/jest.config.js`
+- `git diff -- pnpm-lock.yaml`
+- `pnpm --filter legacy-app test`
+- `pnpm run build`
+- `pnpm run verify:submission`
+
+### Assumptions
+- The intended fix scope is the delayed quick-demographics overwrite race in the legacy app.
+- Full worker recovery, replay, leasing, and observability hardening remain intentionally outside this local change set.
+
+### Human corrections / decisions
+- Human asked to ensure the PR #2 reference is framed as a fuller prior implementation that this repository intentionally narrows to meet local requirements.
+
+### Remaining risks
+- The review did not exercise broader end-to-end worker flows or production MongoDB behavior beyond build and focused unit-style coverage.

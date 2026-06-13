@@ -35,3 +35,12 @@
 - Rejected: promoting Phase 1 during the incident, updating the public canary in place while it has traffic, or combining Phase 1 and Phase 2 into one release candidate.
 - Risk: Basing Phase 2 on Phase 1 would mix two variables in the same dashboard/prepaid area and make rollback/debugging unclear.
 - Verification: Confirm stable A can handle 100% traffic, keep canary maintenance jobs disabled, verify no billing/backfill/migration/aggregation writers run on canary, shift Phase 1 public traffic to zero before replacing it, smoke Phase 2 for availability and unchanged billing semantics, and keep stable A as rollback target.
+
+### 2026-06-13 18:58 — Part 4 delayed demographics overwrite
+
+- Context: `legacy-app` saves a new analysis job with quick, low-confidence demographics and status `PENDING`, publishes an event for `worker-service`, then schedules a delayed quick-demographics refresh. The worker may complete first and write higher-confidence demographics with status `COMPLETED`.
+- Decision: Treat the MongoDB `analysis_jobs.status` field as the source of truth for write ownership. The delayed quick refresh may update only jobs that are still `PENDING`; it must not overwrite worker-owned `PROCESSING`, `COMPLETED`, or `FAILED` states.
+- Source of truth: The persisted `analysis_jobs` document, especially `jobId`, `status`, `demographics`, and timestamps. Worker-completed demographics are authoritative once the job leaves `PENDING`.
+- Rejected: removing the quick preliminary result, removing the worker pipeline, adding broad worker recovery/replay infrastructure, or using timing assumptions to decide which demographics win.
+- Risk: A non-atomic read-then-write check could still race with the worker; the status check must be part of the database update predicate.
+- Verification: Add a fake-timer regression test proving the delayed quick refresh does not overwrite a completed result, and assert the database helper performs an atomic `{ jobId, status: expectedStatus }` update.
