@@ -96,16 +96,28 @@ export class AnalysisService {
     /**
      * Refreshes the demographic data after the initial save.
      * Ensures the pre-computed results are persisted correctly.
+     *
+     * Fix for ticket #4521 (race condition):
+     * Only update if the job is still PENDING — if the Worker has already
+     * written COMPLETED results, skip this update to avoid overwriting
+     * high-confidence Worker results with low-confidence quick-demographics.
      */
     private async delayedUpdate(jobId: string, demographics: Demographics): Promise<void> {
         try {
+            // Guard: do not overwrite if Worker has already completed the job
+            const currentJob = await this.databaseService.findJobById(jobId);
+            if (currentJob?.status === 'COMPLETED') {
+                this.logger.log(`Skipping delayedUpdate for job ${jobId} — Worker already completed.`);
+                return;
+            }
+
             await this.databaseService.updateJob(jobId, {
                 demographics,
                 updatedAt: new Date().toISOString(),
             });
-            console.log('Updated demographics for job ' + jobId);
+            this.logger.log(`Updated demographics for job ${jobId}`);
         } catch (error) {
-            console.log('Error happened');
+            this.logger.error(`Error in delayedUpdate for job ${jobId}`, error);
         }
     }
 }
