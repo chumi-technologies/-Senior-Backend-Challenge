@@ -25,7 +25,7 @@ export class AnalysisService {
      * 2. Run quick pre-computation for immediate user feedback
      * 3. Persist to database so the user can see a "pending" result immediately
      * 4. Publish event to message queue for full analysis by WorkerService
-     * 5. Schedule a follow-up demographic refresh
+     * 5. Return the preliminary job; WorkerService owns the final demographics
      */
     async createAnalysis(dto: CreateAnalysisDto): Promise<AnalysisJob> {
         const jobId = uuidv4();

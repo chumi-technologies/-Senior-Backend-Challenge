@@ -445,3 +445,41 @@ Reviewed the current branch against `origin/main`, inspected the key code/docume
 - `pnpm run build` currently fails because `legacy-app` and `worker-service` import `@senior-challenge/shared-types` but do not declare it as a workspace dependency.
 - `AnalysisService.createAnalysis` still has a stale flow comment saying it schedules a follow-up demographic refresh.
 - `solutions/test-evidence.md` contains older summarized verification output, while the latest `verify:submission` output reports 13 AI log entries before this review entry.
+
+## 2026-06-15 00:14 — Fix build readiness and evidence polish
+
+### User prompt / intent
+User accepted the self-review findings and asked the AI to start modifying.
+
+### AI action
+Fixed the build-blocking workspace dependency issue by declaring `@senior-challenge/shared-types` in both app package manifests and refreshing `pnpm-lock.yaml`. Updated the stale `AnalysisService.createAnalysis` flow comment so it matches the intentionally deleted delayed refresh behavior. Updated `solutions/test-evidence.md` with the fresh bug-repro command and full workspace build evidence.
+
+### Files inspected
+- `apps/legacy-app/package.json`
+- `apps/worker-service/package.json`
+- `apps/legacy-app/src/analysis/analysis.service.ts`
+- `solutions/test-evidence.md`
+- `pnpm-lock.yaml`
+
+### Commands run
+- `sed -n ... systematic-debugging/SKILL.md`
+- `sed -n ... test-driven-development/SKILL.md`
+- `date '+%Y-%m-%d %H:%M'`
+- `git status -sb`
+- `pnpm install`
+- `pnpm run build`
+- `pnpm --filter legacy-app test:bug-repro`
+- `pnpm run verify:submission`
+- `git diff --check`
+- `git diff --stat`
+- `git diff -- apps/legacy-app/package.json apps/worker-service/package.json apps/legacy-app/src/analysis/analysis.service.ts solutions/test-evidence.md pnpm-lock.yaml`
+
+### Assumptions
+- The correct dependency relationship is a local workspace link (`workspace:*`) from both apps to `@senior-challenge/shared-types`.
+- The build failure was a repository packaging/configuration defect rather than a runtime business logic defect.
+
+### Human corrections / decisions
+- Human asked to proceed with the recommended fixes.
+
+### Remaining risks
+- Jest-based package tests still remain unwired in the challenge scaffold, so the supported focused test remains `pnpm --filter legacy-app test:bug-repro`.

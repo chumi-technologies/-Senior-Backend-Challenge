@@ -36,16 +36,31 @@ clobbered by the create-path pre-compute (`confidence: 0.3`, random fields).
 ### After the fix — GREEN
 
 ```text
-$ tsx test/bug-repro.spec.ts   # exit 0
+$ pnpm --filter legacy-app test:bug-repro   # exit 0
+[Nest] ... LOG [AnalysisService] ✅ Job created: <uuid>
 ✅ PASS: worker demographics are preserved (no stale overwrite)
+```
+
+## Workspace build verification
+
+Initial self-review found that both apps imported `@senior-challenge/shared-types`
+without declaring the workspace package dependency. After adding the dependency to
+`legacy-app` and `worker-service`, the full workspace build passes:
+
+```text
+$ pnpm run build     # exit 0
+Scope: 3 of 4 workspace projects
+packages/shared-types build: Done
+apps/worker-service build: Done
+apps/legacy-app build: Done
 ```
 
 ## Submission verification
 
 ```text
-$ pnpm run verify:submission     # exit 0 — 17/17 checks
+$ pnpm run verify:submission     # exit 0
 ✅ solutions/spec.md ... ✅ Spec content
-✅ AI log entries: Found 6 timestamped entries; expected at least 4
+✅ AI log entries: Found at least the required 4 timestamped entries
 ✅ Human correction evidence
 ✅ Semantic glossary / Release state evidence
 ✅ Billing semantics report / Interrupted rollout report
