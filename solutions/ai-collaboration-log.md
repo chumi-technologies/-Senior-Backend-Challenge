@@ -483,3 +483,34 @@ Fixed the build-blocking workspace dependency issue by declaring `@senior-challe
 
 ### Remaining risks
 - Jest-based package tests still remain unwired in the challenge scaffold, so the supported focused test remains `pnpm --filter legacy-app test:bug-repro`.
+
+## 2026-06-15 00:18 — Confirm PR submission target
+
+### User prompt / intent
+User asked whether `chumi-technologies/-Senior-Backend-Challenge#10` is the correct PR to submit to the interviewer.
+
+### AI action
+Checked local branch state, latest local commit, fork remote branch SHA, and GitHub PR metadata for PR #10. Confirmed PR #10 is open, targets upstream `main`, uses head branch `codex/ai-release-challenge-hardening`, and the PR head matched the latest branch commit at the time of inspection (`80261e9`). Also checked GitHub status/workflow metadata; no checks were configured for that commit.
+
+### Files inspected
+- `solutions/ai-collaboration-log.md`
+
+### Commands run
+- `git status -sb`
+- `git log --oneline --decorate --max-count=8`
+- `git ls-remote fork codex/ai-release-challenge-hardening`
+- `git rev-parse HEAD`
+- GitHub connector: `get_pr_info` for `chumi-technologies/-Senior-Backend-Challenge#10`
+- GitHub connector: `get_commit_combined_status` for commit `80261e9`
+- GitHub connector: `fetch_commit_workflow_runs` for commit `80261e9`
+- `date '+%Y-%m-%d %H:%M'`
+
+### Assumptions
+- The interviewer expects the cross-repository PR URL, not a local branch name or patch file.
+- Because GitHub has no status checks configured, the relevant validation evidence remains the local `pnpm run build`, `pnpm --filter legacy-app test:bug-repro`, and `pnpm run verify:submission` runs.
+
+### Human corrections / decisions
+- Human proposed PR #10 as the submission target.
+
+### Remaining risks
+- This log entry itself creates another commit that must be pushed to keep PR #10 fully current.
