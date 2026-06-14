@@ -1,8 +1,19 @@
 import mongoose from 'mongoose';
-import type { AnalysisRequestedEvent, AnalysisJob, Demographics, ThirdPartyApiResponse } from '@senior-challenge/shared-types';
+import type {
+    AnalysisRequestedEvent,
+    AnalysisJob,
+    AnalysisStatus,
+    Demographics,
+    ThirdPartyApiResponse,
+} from '@senior-challenge/shared-types';
 import type { MessageProcessor } from './processor.interface';
 
 const MONGODB_URI = process.env.MONGODB_URI ?? 'mongodb://localhost:27017/analysis_db';
+
+type AnalysisProcessorOptions = {
+    readonly autoConnect?: boolean;
+    readonly connection?: mongoose.Connection | null;
+};
 
 /**
  * Analysis Processor - processes analysis jobs from the queue.
@@ -11,8 +22,12 @@ const MONGODB_URI = process.env.MONGODB_URI ?? 'mongodb://localhost:27017/analys
 export class AnalysisProcessor implements MessageProcessor {
     private connection: mongoose.Connection | null = null;
 
-    constructor() {
-        this.initializeDatabase();
+    constructor(options: AnalysisProcessorOptions = {}) {
+        this.connection = options.connection ?? null;
+
+        if (options.autoConnect ?? true) {
+            void this.initializeDatabase();
+        }
     }
 
     private async initializeDatabase(): Promise<void> {
@@ -49,8 +64,10 @@ export class AnalysisProcessor implements MessageProcessor {
 
             console.log('Job completed: ' + jobId);
         } catch (error) {
-            console.log('Error happened');
-            await this.updateJobStatus(jobId, 'FAILED');
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.log(`Job failed: ${jobId}; stage=analysis_processor; error=${errorMessage}`);
+            await this.updateJobStatus(jobId, 'FAILED', errorMessage);
+            throw error;
         }
     }
 
@@ -132,13 +149,26 @@ export class AnalysisProcessor implements MessageProcessor {
         return '55+';
     }
 
-    private async updateJobStatus(jobId: string, status: string): Promise<void> {
+    private async updateJobStatus(
+        jobId: string,
+        status: AnalysisStatus,
+        errorMessage?: string,
+    ): Promise<void> {
         const collection = this.connection?.collection('analysis_jobs');
         if (!collection) return;
 
+        const updates: Partial<AnalysisJob> = {
+            status,
+            updatedAt: new Date().toISOString(),
+        };
+
+        if (errorMessage) {
+            updates.error = errorMessage;
+        }
+
         await collection.updateOne(
             { jobId },
-            { $set: { status, updatedAt: new Date().toISOString() } },
+            { $set: updates },
         );
     }
 

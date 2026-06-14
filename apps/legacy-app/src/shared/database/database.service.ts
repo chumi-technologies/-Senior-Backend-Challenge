@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import mongoose, { Connection } from 'mongoose';
-import type { AnalysisJob } from '@senior-challenge/shared-types';
+import type { AnalysisJob, AnalysisStatus } from '@senior-challenge/shared-types';
 
 const MONGODB_URI = process.env.MONGODB_URI ?? 'mongodb://localhost:27017/analysis_db';
 
@@ -66,5 +66,27 @@ export class DatabaseService implements OnModuleInit {
             { jobId },
             { $set: { ...updates, updatedAt: new Date().toISOString() } },
         );
+    }
+
+    /**
+     * Updates a job only if it is currently in one of the expected statuses.
+     * This prevents stale asynchronous writers from overwriting newer worker results.
+     */
+    async updateJobIfStatus(
+        jobId: string,
+        allowedStatuses: readonly AnalysisStatus[],
+        updates: Partial<AnalysisJob>,
+    ): Promise<boolean> {
+        const collection = this.connection?.collection('analysis_jobs');
+        if (!collection) {
+            throw new Error('Database not connected');
+        }
+
+        const result = await collection.updateOne(
+            { jobId, status: { $in: [...allowedStatuses] } },
+            { $set: { ...updates, updatedAt: new Date().toISOString() } },
+        );
+
+        return result.modifiedCount > 0;
     }
 }

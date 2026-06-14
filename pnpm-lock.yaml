@@ -32,6 +32,9 @@ importers:
       '@nestjs/platform-express':
         specifier: ^10.3.0
         version: 10.4.22(@nestjs/common@10.4.22)(@nestjs/core@10.4.22)
+      '@senior-challenge/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
       class-transformer:
         specifier: ^0.5.1
         version: 0.5.1
@@ -66,12 +69,18 @@ importers:
       '@types/uuid':
         specifier: ^9.0.7
         version: 9.0.8
+      tsx:
+        specifier: ^4.7.0
+        version: 4.21.0
       typescript:
         specifier: ^5.3.3
         version: 5.9.3
 
   apps/worker-service:
     dependencies:
+      '@senior-challenge/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
       mongoose:
         specifier: ^8.1.0
         version: 8.21.0

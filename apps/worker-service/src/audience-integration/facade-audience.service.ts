@@ -7,6 +7,7 @@
 
 import { chromium, Browser, BrowserContext } from 'playwright';
 import { MockAuthPool } from './mock-auth-pool';
+import { extractAudiencePayload } from './audience-response.mapper';
 
 export class FacadeAudienceService {
     private authPool: MockAuthPool;
@@ -67,7 +68,7 @@ export class FacadeAudienceService {
             console.log('[FacadeService] Raw response:', JSON.stringify(audienceData).substring(0, 200));
 
             // Extract audience demographics from response
-            const extracted = audienceData.data?.audience;
+            const extracted = extractAudiencePayload(audienceData);
 
             if (!extracted) {
                 console.error('[FacadeService] ⚠️ Audience data is NULL - why??');
