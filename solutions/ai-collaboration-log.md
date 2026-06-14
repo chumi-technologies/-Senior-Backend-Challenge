@@ -304,3 +304,29 @@ Attempted to push `codex/ai-release-challenge-hardening` to the configured `fork
 
 ### Remaining risks
 - Push and cross-repository PR remain blocked until the fork repository exists and accepts writes from the current SSH identity.
+
+## 2026-06-15 00:03 — Manual fork instructions requested
+
+### User prompt / intent
+User decided to perform the GitHub fork/PR steps manually and asked for exact instructions.
+
+### AI action
+Prepared manual steps for completing GitHub login/2FA recovery, forking `chumi-technologies/-Senior-Backend-Challenge` into account `1625567290`, pushing the current branch to the fork, and opening a cross-repository PR back to upstream `main`.
+
+### Files inspected
+- `solutions/ai-collaboration-log.md`
+
+### Commands run
+- `date '+%Y-%m-%d %H:%M'`
+- `tail -n 80 solutions/ai-collaboration-log.md`
+
+### Assumptions
+- The fork should be created under GitHub account `1625567290`.
+- The PR target should be `chumi-technologies/-Senior-Backend-Challenge:main`.
+- The branch to push remains `codex/ai-release-challenge-hardening`.
+
+### Human corrections / decisions
+- Human chose to operate the GitHub UI manually.
+
+### Remaining risks
+- Manual GitHub steps can still be blocked by account recovery, 2FA, fork naming mismatch, or SSH key access to the fork.
