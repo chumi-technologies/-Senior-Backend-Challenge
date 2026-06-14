@@ -330,3 +330,63 @@ Prepared manual steps for completing GitHub login/2FA recovery, forking `chumi-t
 
 ### Remaining risks
 - Manual GitHub steps can still be blocked by account recovery, 2FA, fork naming mismatch, or SSH key access to the fork.
+
+## 2026-06-15 00:07 — Project architecture and submission survey
+
+### User prompt / intent
+User asked the AI to first comprehensively understand the project.
+
+### AI action
+Surveyed repository structure, monorepo scripts, challenge instructions, legacy app code, worker-service code, operational rollout inputs, required solution documents, test evidence, and submission verification script. Built a project map: the repository is a high-availability AI gateway interview challenge where the primary deliverables are semantic decisions, release-safety judgment, a small analysis-overwrite bug fix, scale planning, and continuous AI collaboration evidence.
+
+### Files inspected
+- `README.md`
+- `AGENTS.md`
+- `package.json`
+- `apps/legacy-app/package.json`
+- `apps/legacy-app/src/analysis/analysis.controller.ts`
+- `apps/legacy-app/src/analysis/analysis.service.ts`
+- `apps/legacy-app/src/shared/database/database.service.ts`
+- `apps/legacy-app/src/shared/message-queue/message-queue.service.ts`
+- `apps/legacy-app/test/bug-repro.spec.ts`
+- `apps/worker-service/package.json`
+- `apps/worker-service/src/processors/analysis.processor.ts`
+- `apps/worker-service/src/audience-integration/audience.service.ts`
+- `apps/worker-service/src/audience-integration/facade-audience.service.ts`
+- `apps/worker-service/src/audience-integration/mock-auth-pool.ts`
+- `apps/worker-service/src/audience-integration/mock-audience-api.ts`
+- `apps/worker-service/src/queue-poller.ts`
+- `packages/shared-types/src/types.ts`
+- `docs/CHALLENGE_BILLING_SEMANTICS.md`
+- `docs/CHALLENGE_RELEASE_INTERRUPTION.md`
+- `ops/current-rollout-state.json`
+- `ops/urgent-phase2-ticket.md`
+- `solutions/spec.md`
+- `solutions/decision-log.md`
+- `solutions/part1-billing-semantics.md`
+- `solutions/part2-release-interruption.md`
+- `solutions/release-command-log.md`
+- `solutions/refactor-plan.md`
+- `solutions/scale-plan.md`
+- `solutions/test-evidence.md`
+- `scripts/verify-submission.ts`
+- `scripts/process-chaos.ts`
+- `scripts/replay-event.ts`
+
+### Commands run
+- `pwd`
+- `rg --files -g '!*node_modules*' -g '!*.png' -g '!*.jpg' -g '!*.jpeg' -g '!*.gif' -g '!*.lock'`
+- `sed -n ...` over the files listed above
+- `git status -sb && git remote -v && git log --oneline --decorate --max-count=6`
+- `date '+%Y-%m-%d %H:%M'`
+
+### Assumptions
+- The current branch `codex/ai-release-challenge-hardening` remains the submission branch.
+- The existing solutions are intended to be preserved as the candidate's current answer set unless the human requests changes.
+
+### Human corrections / decisions
+- Human asked for a project-wide understanding step before further action; no correction to the current technical interpretation was provided in this step.
+
+### Remaining risks
+- The repo contains intentionally incomplete helper scripts (`process-chaos.ts`, `replay-event.ts`) and no live billing/ledger implementation, so future work must distinguish challenge-document answers from runnable code changes.
+- Any further publish/PR work should account for the latest fork branch state before pushing new log commits.
