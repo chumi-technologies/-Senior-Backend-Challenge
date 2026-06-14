@@ -246,3 +246,61 @@ Ran the repository submission verifier after appending fork-path log entries. Co
 
 ### Remaining risks
 - The fork itself and cross-repository PR are still blocked until GitHub authentication with fork/create-PR capability is available through `gh`, browser login, or another GitHub API route.
+
+## 2026-06-14 23:59 — Add fork remote from repository directory
+
+### User prompt / intent
+User reported `fatal: not a git repository (or any of the parent directories): .git` after running `git remote add fork git@github.com:1625567290/-Senior-Backend-Challenge.git` and asked what happened.
+
+### AI action
+Explained that the command was run outside the repository directory. Confirmed the actual repository path and current branch, then added the `fork` remote from `/Users/liudefu/workspace/-Senior-Backend-Challenge`.
+
+### Files inspected
+- `solutions/ai-collaboration-log.md`
+
+### Commands run
+- `pwd`
+- `git status -sb`
+- `git remote -v`
+- `date '+%Y-%m-%d %H:%M'`
+- `git remote add fork git@github.com:1625567290/-Senior-Backend-Challenge.git`
+- `git remote -v`
+
+### Assumptions
+- The intended fork remote is `git@github.com:1625567290/-Senior-Backend-Challenge.git`.
+- The intended branch remains `codex/ai-release-challenge-hardening`.
+
+### Human corrections / decisions
+- Human supplied the exact remote-add command that failed locally.
+
+### Remaining risks
+- Adding a remote only changes local git config; pushing still depends on the fork existing and the SSH identity having write access to it.
+
+## 2026-06-15 00:00 — Fork push blocked because repository is missing
+
+### User prompt / intent
+Continue the fork publish route after adding the `fork` remote.
+
+### AI action
+Attempted to push `codex/ai-release-challenge-hardening` to the configured `fork` remote. GitHub returned `Repository not found`, so the local git repository and remote configuration are valid, but the fork repository is not available to the authenticated SSH identity.
+
+### Files inspected
+- `solutions/ai-collaboration-log.md`
+
+### Commands run
+- `pnpm run verify:submission`
+- `git diff --check`
+- `git status -sb`
+- `git add solutions/ai-collaboration-log.md && git commit -m "docs: log fork remote setup"`
+- `git push -u fork codex/ai-release-challenge-hardening`
+- `date '+%Y-%m-%d %H:%M'`
+- `git remote -v`
+
+### Assumptions
+- The remote URL is syntactically correct, but the fork has not yet been created under `1625567290` or is not accessible to the SSH key in this environment.
+
+### Human corrections / decisions
+- Human has not yet confirmed fork creation in GitHub.
+
+### Remaining risks
+- Push and cross-repository PR remain blocked until the fork repository exists and accepts writes from the current SSH identity.
