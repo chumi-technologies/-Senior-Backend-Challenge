@@ -74,7 +74,9 @@ Command: `pnpm run verify:submission` — 17/17 checks pass, exit code 0.
 ## 4. Scope of code change (surgical)
 
 - `apps/legacy-app/src/shared/database/database.service.ts`: added `updateJobIfPending` (status guard inside the atomic `updateOne` filter).
+
 - `apps/legacy-app/src/analysis/analysis.service.ts`: `delayedUpdate` now calls `updateJobIfPending` and logs via the NestJS `Logger`.
+
 - Dev-only: `apps/legacy-app/package.json` (test devDeps), `apps/legacy-app/jest.config.js`, `apps/legacy-app/test/bug-repro.spec.ts`.
 
 No changes to the worker, the billing/ledger logic, provider settlement, or ALB load-balancing weights.
