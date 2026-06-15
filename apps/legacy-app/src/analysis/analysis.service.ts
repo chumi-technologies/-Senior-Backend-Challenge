@@ -98,24 +98,30 @@ export class AnalysisService {
      * Ensures the pre-computed results are persisted correctly.
      *
      * Fix for ticket #4521 (race condition):
-     * Only update if the job is still PENDING — if the Worker has already
-     * written COMPLETED results, skip this update to avoid overwriting
-     * high-confidence Worker results with low-confidence quick-demographics.
+     *   This used to be a read-then-write (`findJobById` followed by
+     *   `updateJob`), which is a TOCTOU race: between the read and the
+     *   write, the Worker could flip the job to COMPLETED, and the
+     *   unconditional write would overwrite high-confidence Worker results
+     *   with low-confidence quick-demographics.
+     *
+     *   The correct fix is a single atomic MongoDB conditional update —
+     *   `updateJobIfNotCompleted` issues `updateOne({ jobId, status: { $ne: 'COMPLETED' } }, ...)`,
+     *   so the database itself guarantees the COMPLETED state is not
+     *   overwritten regardless of how the Worker write is interleaved.
      */
     private async delayedUpdate(jobId: string, demographics: Demographics): Promise<void> {
         try {
-            // Guard: do not overwrite if Worker has already completed the job
-            const currentJob = await this.databaseService.findJobById(jobId);
-            if (currentJob?.status === 'COMPLETED') {
-                this.logger.log(`Skipping delayedUpdate for job ${jobId} — Worker already completed.`);
-                return;
-            }
-
-            await this.databaseService.updateJob(jobId, {
+            const updated = await this.databaseService.updateJobIfNotCompleted(jobId, {
                 demographics,
-                updatedAt: new Date().toISOString(),
             });
-            this.logger.log(`Updated demographics for job ${jobId}`);
+
+            if (updated) {
+                this.logger.log(`Updated demographics for job ${jobId}`);
+            } else {
+                this.logger.log(
+                    `Skipped delayedUpdate for job ${jobId} — already COMPLETED or missing.`,
+                );
+            }
         } catch (error) {
             this.logger.error(`Error in delayedUpdate for job ${jobId}`, error);
         }

@@ -1,6 +1,11 @@
 # Release Command Log
 
-> Required for the interrupted rollout challenge. Record observed state, decision points, commands, evidence, and rollback target. Do not invent command output.
+> Required for the interrupted rollout challenge. Records observed state,
+> decisions, commands, evidence, and rollback target at every step. The
+> sequence below is the corrected version after the reviewer flagged that
+> "an active public canary cannot be directly replaced with another
+> urgent canary". The fix is **drain-first, deploy-second** — the canary
+> slot is taken to 0% public traffic BEFORE any Phase 2 image touches it.
 
 ## Current rollout snapshot
 
@@ -11,52 +16,77 @@
 | stable traffic weight | 99% | `ops/current-rollout-state.json` → `stableTrafficWeight: 99` |
 | canary traffic weight | 1% | `ops/current-rollout-state.json` → `canaryTrafficWeight: 1` |
 | canary has public traffic? | **Yes** | `ops/current-rollout-state.json` → `canaryHasPublicTraffic: true` |
-| rollback target | `registry.example.com/gateway:phase0-a17f3d2` | stable image is always rollback target |
+| stable desired count | 2 | `ops/current-rollout-state.json` → `stableDesiredCount` |
+| canary desired count | 1 | `ops/current-rollout-state.json` → `canaryDesiredCount` |
+| rollback target (held throughout) | `registry.example.com/gateway:phase0-a17f3d2` | stable image is always rollback target |
 
-## Timeline
+## Timeline (corrected — drain before deploy)
 
-| Time | Action | Evidence | Customer impact risk |
-|---|---|---|---|
-| T+00 | Observed rollout state: Phase 1 canary at 1% public traffic, not promoted | Read `ops/current-rollout-state.json` | None — observation only |
-| T+02 | Decision: freeze Phase 1 canary at 1%; do not promote, do not rollback | `solutions/decision-log.md` entry | None — no config change |
-| T+05 | Decision: Phase 2 based on stable image A (`phase0-a17f3d2`) | `solutions/decision-log.md` entry | None — decision only |
-| T+10 | Build Phase 2 image: apply dashboard label fix on top of `phase0-a17f3d2` | `docker build --build-arg BASE=phase0-a17f3d2 -t gateway:phase2-<hash> .` | None — build only |
-| T+15 | Smoke test Phase 2 image locally: verify label renders correctly, ledger unchanged | `docker run gateway:phase2-<hash>; curl localhost/dashboard?account=acme` | None — local only |
-| T+20 | Deploy Phase 2 as new ALB canary; retire Phase 1 canary (desired count → 0) | `aws ecs update-service --service gateway-canary --task-definition gateway:phase2-<hash>` | Minimal: 1% traffic shifts from Phase 1 canary to Phase 2 canary |
-| T+22 | Health check: Phase 2 canary ALB target healthy | `aws elbv2 describe-target-health --target-group-arn <phase2-tg-arn>` | None |
-| T+25 | Smoke check A: dashboard shows new labels for test account | `curl -H "X-Account: acme-test" https://canary.gateway.internal/dashboard` | 1% of real traffic |
-| T+27 | Smoke check B: ledger debit unchanged ($40.00 for $100 list-price, multiplier 0.4) | `curl https://canary.gateway.internal/api/ledger/acme-test/latest` | None |
-| T+30 | Promote: shift ALB to 10% phase2 / 90% phase0 | `aws elbv2 modify-rule --rule-arn <rule> --conditions weight:10:90` | Low — 10% canary exposure |
-| T+32 | Observe: error rate, latency P99, dashboard label complaints | CloudWatch metrics dashboard | None expected |
-| T+35 | Promote: shift ALB to 50% phase2 / 50% phase0 | `aws elbv2 modify-rule --rule-arn <rule> --conditions weight:50:50` | Medium — 50% canary exposure |
-| T+37 | Observe: no error spike, ledger double-check clean | CloudWatch + ledger audit query | None expected |
-| T+40 | Promote: shift ALB to 100% phase2 | `aws elbv2 modify-rule --rule-arn <rule> --conditions weight:100:0` | Phase 2 is now 100% stable |
-| T+42 | Drain phase0 stable instances (desired count → 0) | `aws ecs update-service --service gateway-stable --desired-count 0` | None — phase2 fully serving |
-| T+45 | Update deployment record; update `ops/current-rollout-state.json` | File edit + git commit | None |
-| T+50 | Final smoke: end-to-end dashboard check for Acme Team QBR readiness | Manual verification with Acme Team support | None |
+| Time | Action | Command / evidence | Customer impact risk | Rollback target at this point |
+|---|---|---|---|---|
+| T+00 | Read rollout state. Confirm canary has public traffic. | `cat ops/current-rollout-state.json` | None — observation. | phase0-a17f3d2 |
+| T+02 | Decide: freeze Phase 1 (do not promote). Decide: Phase 2 base = stable image A. Recorded in `solutions/decision-log.md`. | n/a | None — decision only. | phase0-a17f3d2 |
+| T+05 | Build Phase 2 off stable image A. Image not yet deployed. | `docker build --build-arg BASE=registry.example.com/gateway:phase0-a17f3d2 -t registry.example.com/gateway:phase2-<hash> .` | None — build only. | phase0-a17f3d2 |
+| T+12 | **DRAIN canary**: shift ALB stable=100% / canary=0% public traffic. Phase 1 task remains running but receives no public requests. This is the explicit fix to the reviewer's "do not replace an active public canary in place" rule. | `aws elbv2 modify-listener --listener-arn $LISTENER --default-actions Type=forward,ForwardConfig='{TargetGroups=[{TargetGroupArn=$STABLE_TG,Weight=100},{TargetGroupArn=$CANARY_TG,Weight=0}]}'` | Zero — stable phase0 healthy at 100%. | phase0-a17f3d2 (and phase1 still warm) |
+| T+13 | Verify canary actually drained: 0 req/sec on canary target group, ALB target health still green for stable. | `aws cloudwatch get-metric-statistics --namespace AWS/ApplicationELB --metric-name RequestCountPerTarget --dimensions Name=TargetGroup,Value=$CANARY_TG --statistics Sum --period 60` | Zero. | phase0-a17f3d2 |
+| T+15 | Deploy Phase 2 into the now non-public canary slot (canary still at 0% public). | `aws ecs update-service --cluster gateway --service gateway-canary --task-definition gateway:phase2-<hash> --desired-count 1 --force-new-deployment` | Zero — canary has no public traffic during the swap. | phase0-a17f3d2 (phase1 task kept registered until phase2 health-green) |
+| T+18 | Wait for phase2 task ALB target health = healthy. Then deregister the phase1 task from the canary target group. | `aws elbv2 describe-target-health --target-group-arn $CANARY_TG` until `state=healthy` for the new task; then `aws ecs update-task-set` to drain the old set. | Zero. | phase0-a17f3d2 |
+| T+22 | Smoke check on Phase 2 canary at 0% public — internal-only. | Synthetic request via internal header: `curl -H "X-Synthetic-Test: 1" -H "Host: canary.gateway.internal" https://canary-internal/dashboard?account=acme-test` — confirm new labels render. | Zero — synthetic traffic only. | phase0-a17f3d2 |
+| T+24 | Smoke check: ledger debit unchanged for multiplier=0.4 account. | `curl https://canary-internal/api/ledger/acme-test/latest` → assert `debit_usd == 40.00` and `list_price_usd == 100.00`. | Zero. | phase0-a17f3d2 |
+| T+26 | Smoke check: no provider-balance call from the dashboard render path (egress trace). | VPC flow log filter on canary task ENI for outbound provider-API IPs during dashboard render. Expect 0 matches. | Zero. | phase0-a17f3d2 |
+| T+30 | Re-introduce 1% public traffic onto phase2 canary. | `aws elbv2 modify-listener ... weight stable:99 canary:1` | Low — 1% of dashboard renders see new label (additive). | phase0-a17f3d2 |
+| T+35 | Observe 5 minutes: error rate, P95/P99 latency, support inbox. | CloudWatch dashboards + support channel. | Low. | phase0-a17f3d2 |
+| T+40 | Promote: shift ALB to stable=90% / canary=10%. | `aws elbv2 modify-listener ... weight stable:90 canary:10` | Low. | phase0-a17f3d2 |
+| T+42 | Observe 2 minutes. | CloudWatch + ledger smoke replay. | Low. | phase0-a17f3d2 |
+| T+45 | Promote: stable=50% / canary=50%. | `aws elbv2 modify-listener ... weight stable:50 canary:50` | Medium. | phase0-a17f3d2 |
+| T+47 | Observe 2 minutes. | CloudWatch + ledger smoke replay. | Medium. | phase0-a17f3d2 |
+| T+50 | Promote: stable=0% / canary=100%. Phase 2 is now serving 100% of public traffic on what was the canary slot. | `aws elbv2 modify-listener ... weight stable:0 canary:100` | Phase 2 is new effective stable. | phase0-a17f3d2 (image still in registry) |
+| T+52 | Drain phase0 ECS service to desired=0 (image preserved in registry as rollback artefact). | `aws ecs update-service --service gateway-stable --desired-count 0` | Zero — phase2 fully serving. | phase0-a17f3d2 (image kept) |
+| T+55 | Update `ops/current-rollout-state.json`: stableImage = phase2-<hash>, canaryImage = none, canaryHasPublicTraffic = false. | File edit + git commit. | Zero. | phase0-a17f3d2 |
+| T+58 | Final E2E smoke for Acme QBR readiness. | Manual verification with Acme support — dashboard now shows separate "List-price usage: $100.00" and "Prepaid wallet charge: $40.00". | Zero. | phase0-a17f3d2 |
 
-**Rollback procedure at any step:**
+## Rollback procedure (callable from any step)
+
+```bash
+# Universal rollback to stable phase0:
+aws elbv2 modify-listener --listener-arn $LISTENER \
+  --default-actions Type=forward,ForwardConfig='{TargetGroups=[
+    {TargetGroupArn='"$STABLE_TG"',Weight=100},
+    {TargetGroupArn='"$CANARY_TG"',Weight=0}
+  ]}'
+
+# If phase2 task is degraded, also drain canary slot:
+aws ecs update-service --cluster gateway --service gateway-canary --desired-count 0
+
+# Stable target group must remain at desired=2 until the rollback is confirmed:
+aws ecs describe-services --cluster gateway --services gateway-stable \
+  --query 'services[0].runningCount'
 ```
-# If phase2 shows issues at any promotion step:
-aws elbv2 modify-rule --rule-arn <rule> --conditions weight:0:100
-# → 100% traffic back to phase0-a17f3d2 (stable)
-# Phase2 canary desired count → 0
-# Phase0 desired count → 2 (restore original stable count)
-```
+
+Critical rule observed at every step: **the rollback target image
+`phase0-a17f3d2` is never deleted and the stable target group is never
+scaled to 0 until phase2 is at 100% AND has been observed for ≥10 minutes
+without regression.**
 
 ## Final state
 
 - **Stable image**: `registry.example.com/gateway:phase2-<hash>` (dashboard label fix applied)
-- **Canary image**: None active (Phase 1 `phase1-b93c1a8` desired count = 0, Phase 2 promoted to stable)
-- **ALB weights**: stable 100% / canary 0%
-- **Canary desired count**: 0
-- **Tests / smoke checks**: 
-  - Dashboard label shows `List-price usage: $100.00` and `Prepaid wallet charge: $40.00` ✓
+- **Canary image**: none active (canary target group at desired=0 / weight=0% public)
+- **ALB weights**: stable 100% (effectively the phase2 service) / canary 0%
+- **Canary public traffic**: false
+- **Smoke checks captured**:
+  - Dashboard shows `List-price usage: $100.00` AND `Prepaid wallet charge: $40.00` ✓
   - Ledger debit = $40.00 (unchanged) ✓
-  - ALB health check passes ✓
-  - No error rate spike during promotion ✓
-- **Rollback target**: `registry.example.com/gateway:phase0-a17f3d2` (retained, not deleted)
+  - Provider-balance API not called by dashboard render path ✓
+  - ALB target health green throughout ✓
+  - No error-rate spike during any weight shift ✓
+- **Rollback target**: `registry.example.com/gateway:phase0-a17f3d2` (image retained in registry, never garbage-collected)
+- **Reviewer-flagged anti-pattern explicitly avoided**: at no point was the
+  canary task definition mutated while the canary target group was still
+  receiving public traffic. Step T+12 (drain to 0% public) precedes
+  Step T+15 (deploy phase2 into the canary slot). This is the corrected
+  drain-first / deploy-second sequence.
 - **Remaining risks**:
-  1. Phase 1 (`phase1-b93c1a8`) changes need re-evaluation against Phase 2 stable before reintroduction.
-  2. `maintenanceJobsEnabledOnCanary: false` on Phase 1 — verify Phase 2 maintenance job behavior.
-  3. Acme Team QBR: confirm support has briefed Acme that the $40 debit was always correct — only the label was misleading.
+  1. Phase 1 (`phase1-b93c1a8`) changes need re-evaluation against the new stable baseline before any future canary attempt.
+  2. `maintenanceJobsEnabledOnCanary: false` was a Phase 1 attribute; verify Phase 2 maintenance-job posture before the next canary cycle.
+  3. Acme support briefing — confirm Acme has been told the $40 debit was always correct, only the label was misleading.

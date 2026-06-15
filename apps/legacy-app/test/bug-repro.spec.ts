@@ -5,29 +5,51 @@ import { MessageQueueService } from '../src/shared/message-queue/message-queue.s
 import type { AnalysisJob, Demographics } from '@senior-challenge/shared-types';
 
 /**
- * Bug Reproduction Test Suite
+ * Bug Reproduction Test Suite — Ticket #4521
  *
- * Reproduces and verifies the data inconsistency reported in customer support ticket #4521.
+ * Customer support reported that high-confidence Worker results are
+ * intermittently overwritten with low-confidence quick-demographics.
  *
- * Root cause: AnalysisService.createAnalysis() fires a setTimeout(delayedUpdate, 2000)
- * that unconditionally overwrites job demographics with low-confidence quick-demographics,
- * even after the Worker has already written high-confidence COMPLETED results.
+ * Original bug timeline:
+ *   T+0ms     createAnalysis()  -> saveJob(quickDemographics, status=PENDING)
+ *   T+~1000ms Worker            -> updateJob(highConfidence, status=COMPLETED)
+ *   T+2000ms  delayedUpdate()   -> updateJob(quickDemographics)  // overwrite
  *
- * Race condition timeline:
- *   T+0ms:    createAnalysis() → saveJob(quickDemographics, status=PENDING)
- *   T+~1000ms: Worker completes → updateJob(highConfidenceDemographics, status=COMPLETED)
- *   T+2000ms: delayedUpdate() → updateJob(quickDemographics) ← OVERWRITES COMPLETED result
+ * The original first-attempt fix used a read-then-write pattern:
+ *   findJobById(jobId)
+ *   if (job.status === 'COMPLETED') return
+ *   updateJob(jobId, {...})
+ *
+ * That fix is INCORRECT under concurrency. Between `findJobById` and
+ * `updateJob`, the Worker can transition the job to COMPLETED, and the
+ * unconditional `updateJob` will still overwrite the COMPLETED state.
+ * This is a textbook TOCTOU (time-of-check / time-of-use) race.
+ *
+ * The correct fix is a single atomic conditional update:
+ *   updateOne({ jobId, status: { $ne: 'COMPLETED' } }, { $set: ... })
+ *
+ * The database itself decides whether to write, so no interleaving exists.
+ *
+ * These tests exercise the in-memory mock equivalent of that atomic
+ * conditional update via `updateJobIfNotCompleted`.
  */
-describe('Data Consistency (Bug Repro — Ticket #4521)', () => {
+describe('Data Consistency (Bug Repro — Ticket #4521, atomic update)', () => {
   let service: AnalysisService;
   let mockDb: { jobs: Record<string, AnalysisJob> };
 
-  // Tracks all updateJob calls in sequence for assertion
-  const updateCallLog: Array<{ demographics?: Demographics; status?: string }> = [];
+  // Records every write attempt so we can assert atomicity.
+  type WriteAttempt = {
+    readonly kind: 'updateJob' | 'updateJobIfNotCompleted';
+    readonly jobId: string;
+    readonly applied: boolean;
+    readonly demographics?: Demographics;
+    readonly status?: string;
+  };
+  const writeLog: WriteAttempt[] = [];
 
   beforeEach(async () => {
     mockDb = { jobs: {} };
-    updateCallLog.length = 0;
+    writeLog.length = 0;
 
     const mockDatabaseService = {
       saveJob: jest.fn(async (job: AnalysisJob) => {
@@ -37,11 +59,37 @@ describe('Data Consistency (Bug Repro — Ticket #4521)', () => {
         return mockDb.jobs[jobId] ?? null;
       }),
       updateJob: jest.fn(async (jobId: string, updates: Partial<AnalysisJob>) => {
-        updateCallLog.push({ demographics: updates.demographics, status: (updates as any).status });
+        writeLog.push({
+          kind: 'updateJob',
+          jobId,
+          applied: Boolean(mockDb.jobs[jobId]),
+          demographics: updates.demographics,
+          status: (updates as Partial<AnalysisJob>).status,
+        });
         if (mockDb.jobs[jobId]) {
           mockDb.jobs[jobId] = { ...mockDb.jobs[jobId], ...updates };
         }
       }),
+      // Mock equivalent of MongoDB's atomic conditional update:
+      //   updateOne({ jobId, status: { $ne: 'COMPLETED' } }, { $set: updates })
+      // Returns true iff a document was actually updated.
+      updateJobIfNotCompleted: jest.fn(
+        async (jobId: string, updates: Partial<AnalysisJob>): Promise<boolean> => {
+          const current = mockDb.jobs[jobId];
+          const matches = Boolean(current) && current.status !== 'COMPLETED';
+          writeLog.push({
+            kind: 'updateJobIfNotCompleted',
+            jobId,
+            applied: matches,
+            demographics: updates.demographics,
+            status: (updates as Partial<AnalysisJob>).status,
+          });
+          if (matches) {
+            mockDb.jobs[jobId] = { ...current, ...updates };
+          }
+          return matches;
+        },
+      ),
     };
 
     const mockMessageQueueService = {
@@ -65,39 +113,31 @@ describe('Data Consistency (Bug Repro — Ticket #4521)', () => {
   });
 
   /**
-   * Test 1: Reproduce the bug — demonstrates that without the fix,
-   * delayedUpdate overwrites a COMPLETED job's high-confidence demographics.
+   * Test 1: COMPLETED-before-timer case.
    *
-   * This test uses real timers and simulates the Worker completing before 2 seconds.
-   * After this test, you should see that the final stored demographics have confidence=0.3
-   * (the quick-demographics value), not the Worker's high-confidence value.
+   * Worker flips job to COMPLETED before the 2-second delayedUpdate fires.
+   * The atomic conditional write must NOT modify the document.
    */
-  it('should reproduce the data overwrite issue before fix', async () => {
+  it('should not overwrite a COMPLETED job demographics (Worker faster than 2s)', async () => {
     jest.useFakeTimers();
 
     const job = await service.createAnalysis({
-      userId: 'user-acme-test',
+      userId: 'user-acme-completed',
       dataUrl: 'https://data.example.com/acme.csv',
     });
-
     const { jobId } = job;
 
-    // Verify initial state: quick-demographics with low confidence
-    const initialJob = mockDb.jobs[jobId];
-    expect(initialJob).toBeDefined();
-    expect(initialJob.status).toBe('PENDING');
-    expect(initialJob.demographics?.confidence).toBe(0.3);
+    expect(mockDb.jobs[jobId].status).toBe('PENDING');
+    expect(mockDb.jobs[jobId].demographics?.confidence).toBe(0.3);
 
-    // Simulate Worker completing with high-confidence results BEFORE the 2s timeout
+    // Worker completes BEFORE delayedUpdate fires.
     const workerDemographics: Demographics = {
       ageRange: '25-34',
       gender: 'female',
       location: 'US',
       interests: ['fashion', 'travel'],
-      confidence: 0.85, // High confidence — Worker's full analysis
+      confidence: 0.85,
     };
-
-    // Worker writes COMPLETED result at T+1000ms (before delayedUpdate at T+2000ms)
     mockDb.jobs[jobId] = {
       ...mockDb.jobs[jobId],
       status: 'COMPLETED',
@@ -105,131 +145,158 @@ describe('Data Consistency (Bug Repro — Ticket #4521)', () => {
       completedAt: new Date().toISOString(),
     };
 
-    // Advance time to T+2000ms — delayedUpdate fires
     jest.advanceTimersByTime(2500);
+    await flushMicrotasks();
 
-    // Wait for any pending async operations
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-
-    // BUG DEMONSTRATION: delayedUpdate has now fired and overwritten the COMPLETED job
-    // The final demographics should be the Worker's high-confidence result (0.85)
-    // but WITHOUT the fix, it will be the quick-demographics (0.3)
     const finalJob = mockDb.jobs[jobId];
 
-    // This assertion documents the BUG: final confidence is overwritten to 0.3
-    // Comment: "updateJob was called with quick-demographics AFTER Worker completed"
-    const lastUpdateCall = updateCallLog[updateCallLog.length - 1];
-    if (lastUpdateCall && lastUpdateCall.demographics) {
-      // The bug: delayedUpdate overwrites with confidence=0.3 even though job is COMPLETED
-      expect(lastUpdateCall.demographics.confidence).toBe(0.3);
-    }
+    // Worker result preserved — atomic guard rejected the late write.
+    expect(finalJob.status).toBe('COMPLETED');
+    expect(finalJob.demographics?.confidence).toBe(0.85);
 
-    // The overwrite occurred — final stored confidence is 0.3, not 0.85
-    // This is the bug. After the fix, this assertion should FAIL (proving overwrite stopped).
-    console.log(
-      `[BUG REPRO] Final stored confidence: ${finalJob.demographics?.confidence} ` +
-      `(expected Worker value 0.85, got overwritten with quick-demographics ${finalJob.demographics?.confidence})`
-    );
+    // No unconditional updateJob was issued by delayedUpdate.
+    const unconditionalWrites = writeLog.filter((w) => w.kind === 'updateJob');
+    expect(unconditionalWrites).toEqual([]);
+
+    // The conditional write was attempted exactly once and was rejected.
+    const conditionalWrites = writeLog.filter((w) => w.kind === 'updateJobIfNotCompleted');
+    expect(conditionalWrites).toHaveLength(1);
+    expect(conditionalWrites[0].applied).toBe(false);
   });
 
   /**
-   * Test 2: Verify the fix — after applying the status guard in delayedUpdate,
-   * a COMPLETED job's demographics must NOT be overwritten.
+   * Test 2: Interleaved write case — TOCTOU regression guard.
    *
-   * This is the characterization test that locks the correct behavior.
+   * This test fails on the original read-then-write fix and passes on
+   * the atomic conditional update fix.
+   *
+   * We force the database to flip the job to COMPLETED in the middle of
+   * the delayedUpdate "operation". With a read-then-write fix this would
+   * silently overwrite the COMPLETED state. With the atomic conditional
+   * update, the write is rejected because the filter is evaluated
+   * server-side at the moment of the write, not at the moment of the read.
    */
-  it('should not overwrite COMPLETED job demographics when Worker finishes before delayedUpdate fires', async () => {
+  it('should not overwrite a job that becomes COMPLETED between read and write (TOCTOU)', async () => {
     jest.useFakeTimers();
 
     const job = await service.createAnalysis({
-      userId: 'user-acme-verified',
-      dataUrl: 'https://data.example.com/acme-v2.csv',
+      userId: 'user-acme-toctou',
+      dataUrl: 'https://data.example.com/toctou.csv',
     });
-
     const { jobId } = job;
 
-    // Initial quick-demographics written
+    // Original PENDING state — Worker has not yet completed at the time
+    // delayedUpdate would have read the job.
     expect(mockDb.jobs[jobId].status).toBe('PENDING');
-    expect(mockDb.jobs[jobId].demographics?.confidence).toBe(0.3);
 
-    // Simulate Worker completing BEFORE 2s timeout fires
-    const workerDemographics: Demographics = {
-      ageRange: '35-44',
-      gender: 'male',
-      location: 'UK',
-      interests: ['tech', 'finance'],
-      confidence: 0.92,
+    // Wire a one-shot interleaver: the FIRST conditional update call
+    // observes a synthetic Worker COMPLETED transition that occurs *between*
+    // any potential read and the write. Because we use a single atomic
+    // conditional update, the filter is evaluated against the post-flip
+    // state and the write must be rejected.
+    const dbMock = (service as unknown as { databaseService: DatabaseService })
+      .databaseService as unknown as {
+      updateJobIfNotCompleted: jest.Mock<Promise<boolean>, [string, Partial<AnalysisJob>]>;
     };
+    const realImpl = dbMock.updateJobIfNotCompleted.getMockImplementation();
+    dbMock.updateJobIfNotCompleted.mockImplementationOnce(
+      async (id: string, updates: Partial<AnalysisJob>): Promise<boolean> => {
+        // Simulate the Worker flipping the job to COMPLETED right before
+        // the database evaluates the conditional update filter.
+        if (mockDb.jobs[id]) {
+          mockDb.jobs[id] = {
+            ...mockDb.jobs[id],
+            status: 'COMPLETED',
+            demographics: {
+              ageRange: '35-44',
+              gender: 'male',
+              location: 'UK',
+              interests: ['tech'],
+              confidence: 0.92,
+            },
+            completedAt: new Date().toISOString(),
+          };
+        }
+        return realImpl ? realImpl(id, updates) : false;
+      },
+    );
 
-    // Worker updates the job to COMPLETED
-    mockDb.jobs[jobId] = {
-      ...mockDb.jobs[jobId],
-      status: 'COMPLETED',
-      demographics: workerDemographics,
-      completedAt: new Date().toISOString(),
-    };
-
-    // Advance time past the delayedUpdate timeout
     jest.advanceTimersByTime(2500);
-
-    // Wait for all microtasks and promises to settle
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
+    await flushMicrotasks();
 
     const finalJob = mockDb.jobs[jobId];
 
-    // FIXED BEHAVIOR: After fix, delayedUpdate checks job status.
-    // If status === COMPLETED, it skips the update.
-    // Final demographics should still be Worker's high-confidence result.
+    // Worker result wins. The interleaved COMPLETED flip is preserved.
     expect(finalJob.status).toBe('COMPLETED');
     expect(finalJob.demographics?.confidence).toBe(0.92);
     expect(finalJob.demographics?.ageRange).toBe('35-44');
-    expect(finalJob.demographics?.interests).toEqual(['tech', 'finance']);
 
-    console.log(
-      `[FIX VERIFIED] Final stored confidence: ${finalJob.demographics?.confidence} ` +
-      `— Worker's high-confidence result preserved. delayedUpdate did not overwrite COMPLETED job.`
-    );
+    // Conditional update returned false — write was rejected by the guard.
+    const conditional = writeLog.filter((w) => w.kind === 'updateJobIfNotCompleted');
+    expect(conditional).toHaveLength(1);
+    expect(conditional[0].applied).toBe(false);
+
+    // No unconditional `updateJob` call occurred — the service uses ONLY
+    // the atomic conditional API for the delayed refresh.
+    const unconditional = writeLog.filter((w) => w.kind === 'updateJob');
+    expect(unconditional).toEqual([]);
   });
 
   /**
-   * Test 3: Verify that delayedUpdate DOES update if the job is still PENDING.
-   * (For queue-backlog scenario where Worker hasn't started yet)
+   * Test 3: PENDING-still case (queue backlog).
+   *
+   * If the Worker hasn't picked up the job yet, the delayed refresh is
+   * the only data the user has. The atomic conditional update must apply.
    */
-  it('should still update demographics if job is still PENDING when delayedUpdate fires', async () => {
+  it('should still update demographics if the job is still PENDING when the timer fires', async () => {
     jest.useFakeTimers();
 
     const job = await service.createAnalysis({
       userId: 'user-slow-queue',
       dataUrl: 'https://data.example.com/slow-queue.csv',
     });
-
     const { jobId } = job;
 
-    // Job remains PENDING (Worker hasn't picked it up yet)
     expect(mockDb.jobs[jobId].status).toBe('PENDING');
 
-    const updateCallsBefore = updateCallLog.length;
-
-    // Advance time — delayedUpdate fires while job is still PENDING
     jest.advanceTimersByTime(2500);
+    await flushMicrotasks();
 
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
+    const conditional = writeLog.filter((w) => w.kind === 'updateJobIfNotCompleted');
+    expect(conditional).toHaveLength(1);
+    expect(conditional[0].applied).toBe(true);
+    expect(mockDb.jobs[jobId].status).toBe('PENDING');
+    expect(mockDb.jobs[jobId].demographics?.confidence).toBe(0.3);
+  });
 
-    // delayedUpdate SHOULD have fired and written (job is still PENDING, no Worker result yet)
-    const updateCallsAfter = updateCallLog.length;
-    expect(updateCallsAfter).toBeGreaterThan(updateCallsBefore);
+  /**
+   * Test 4: Service must use the atomic conditional API and never the
+   * unconditional `updateJob` for the delayed refresh.
+   *
+   * This is a structural test that prevents accidentally regressing back
+   * to read-then-write.
+   */
+  it('should never call the unconditional updateJob from the delayed refresh path', async () => {
+    jest.useFakeTimers();
 
-    console.log(
-      `[PENDING CASE] delayedUpdate correctly updated PENDING job (Worker hasn't completed yet). ` +
-      `Update calls: ${updateCallsAfter - updateCallsBefore}`
-    );
+    await service.createAnalysis({
+      userId: 'user-structural',
+      dataUrl: 'https://data.example.com/structural.csv',
+    });
+
+    jest.advanceTimersByTime(2500);
+    await flushMicrotasks();
+
+    const unconditional = writeLog.filter((w) => w.kind === 'updateJob');
+    expect(unconditional).toEqual([]);
+
+    const conditional = writeLog.filter((w) => w.kind === 'updateJobIfNotCompleted');
+    expect(conditional.length).toBeGreaterThan(0);
   });
 });
+
+async function flushMicrotasks(): Promise<void> {
+  for (let i = 0; i < 8; i++) {
+    await Promise.resolve();
+  }
+}
