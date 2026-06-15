@@ -94,18 +94,26 @@ export class AnalysisService {
     }
 
     /**
-     * Refreshes the demographic data after the initial save.
-     * Ensures the pre-computed results are persisted correctly.
+     * Refreshes the preliminary demographic data after the initial save.
+     *
+     * Guards on PENDING status so this delayed refresh cannot overwrite results
+     * the Worker has already written (PROCESSING / COMPLETED). This is the fix
+     * for the data-overwrite race in ticket #4521: previously the unconditional
+     * update clobbered the worker's final demographics with the stale
+     * preliminary estimate.
      */
     private async delayedUpdate(jobId: string, demographics: Demographics): Promise<void> {
         try {
-            await this.databaseService.updateJob(jobId, {
+            const applied = await this.databaseService.updateJobIfPending(jobId, {
                 demographics,
-                updatedAt: new Date().toISOString(),
             });
-            console.log('Updated demographics for job ' + jobId);
+            if (applied) {
+                this.logger.log(`Refreshed preliminary demographics for job ${jobId}`);
+            } else {
+                this.logger.log(`Skipped stale refresh for job ${jobId}; already past PENDING`);
+            }
         } catch (error) {
-            console.log('Error happened');
+            this.logger.error(`Failed to refresh demographics for job ${jobId}`, error as Error);
         }
     }
 }

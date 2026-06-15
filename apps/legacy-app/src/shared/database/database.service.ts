@@ -67,4 +67,27 @@ export class DatabaseService implements OnModuleInit {
             { $set: { ...updates, updatedAt: new Date().toISOString() } },
         );
     }
+
+    /**
+     * Updates an analysis job only while it is still PENDING.
+     *
+     * The status guard lives inside the atomic update filter, so a delayed
+     * preliminary refresh can never overwrite results that the worker has
+     * already written (PROCESSING / COMPLETED / FAILED). Returns whether a
+     * document was modified, so callers can tell that a stale refresh was a
+     * no-op rather than a silent failure. Fixes the lost-update race in #4521.
+     */
+    async updateJobIfPending(jobId: string, updates: Partial<AnalysisJob>): Promise<boolean> {
+        const collection = this.connection?.collection('analysis_jobs');
+        if (!collection) {
+            throw new Error('Database not connected');
+        }
+
+        const result = await collection.updateOne(
+            { jobId, status: 'PENDING' },
+            { $set: { ...updates, updatedAt: new Date().toISOString() } },
+        );
+
+        return result.modifiedCount > 0;
+    }
 }
