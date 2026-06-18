@@ -1,11 +1,18 @@
 {
     "name": "@senior-challenge/shared-types",
     "version": "1.0.0",
-    "main": "dist/index.js",
-    "types": "dist/index.d.ts",
+    "main": "src/index.ts",
+    "types": "src/index.ts",
+    "exports": {
+        ".": {
+            "types": "./src/index.ts",
+            "default": "./src/index.ts"
+        }
+    },
     "scripts": {
         "build": "tsc",
-        "dev": "tsc --watch"
+        "dev": "tsc --watch",
+        "prepare": "tsc || true"
     },
     "devDependencies": {
         "typescript": "^5.3.3"

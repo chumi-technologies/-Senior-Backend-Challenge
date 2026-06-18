@@ -96,16 +96,34 @@ export class AnalysisService {
     /**
      * Refreshes the demographic data after the initial save.
      * Ensures the pre-computed results are persisted correctly.
+     *
+     * Fix for ticket #4521 (race condition):
+     *   This used to be a read-then-write (`findJobById` followed by
+     *   `updateJob`), which is a TOCTOU race: between the read and the
+     *   write, the Worker could flip the job to COMPLETED, and the
+     *   unconditional write would overwrite high-confidence Worker results
+     *   with low-confidence quick-demographics.
+     *
+     *   The correct fix is a single atomic MongoDB conditional update —
+     *   `updateJobIfNotCompleted` issues `updateOne({ jobId, status: { $ne: 'COMPLETED' } }, ...)`,
+     *   so the database itself guarantees the COMPLETED state is not
+     *   overwritten regardless of how the Worker write is interleaved.
      */
     private async delayedUpdate(jobId: string, demographics: Demographics): Promise<void> {
         try {
-            await this.databaseService.updateJob(jobId, {
+            const updated = await this.databaseService.updateJobIfNotCompleted(jobId, {
                 demographics,
-                updatedAt: new Date().toISOString(),
             });
-            console.log('Updated demographics for job ' + jobId);
+
+            if (updated) {
+                this.logger.log(`Updated demographics for job ${jobId}`);
+            } else {
+                this.logger.log(
+                    `Skipped delayedUpdate for job ${jobId} — already COMPLETED or missing.`,
+                );
+            }
         } catch (error) {
-            console.log('Error happened');
+            this.logger.error(`Error in delayedUpdate for job ${jobId}`, error);
         }
     }
 }
