@@ -16,6 +16,21 @@ We are looking for engineers who can:
 - design scale improvements under time and staffing constraints
 - prove behavior with contract tests, command output, and release evidence
 
+
+## Submission privacy and anti-reference policy
+
+Do **not** submit this challenge by opening a public pull request against this repository. Public PRs let later candidates read prior answers and invalidate the take-home signal.
+
+Use one of these private submission paths instead:
+
+1. **Preferred: per-candidate private repository.** The hiring team creates a private repo for exactly one candidate and the reviewer team. The candidate pushes their branch and opens a PR inside that private repo.
+2. **Acceptable: private candidate repository.** The candidate imports or copies this challenge into a new private repo that is not a public fork, then invites the reviewer GitHub users or review team.
+3. **Fallback: private archive submission.** The candidate sends a compressed repository archive that includes the full `.git` history, solution files, tests, and command evidence.
+
+Do not use GitHub public forks for submissions. GitHub public repository forks are public and cannot be made private while they remain forks.
+
+Reviewer note: if a shared upstream private repo is used, avoid collecting all candidate PRs in that same upstream PR list while multiple candidates still have read access. Prefer per-candidate private repos, or revoke candidate access before review PRs become visible to other candidates.
+
 ## Mandatory AI collaboration record
 
 AI tools are allowed, but every meaningful AI step must be recorded in:

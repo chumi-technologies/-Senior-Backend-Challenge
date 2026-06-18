@@ -2,6 +2,13 @@
 
 This repository is an interview challenge. AI tools are allowed and expected, but the candidate is responsible for directing, correcting, and validating AI output.
 
+
+## Submission privacy rule
+
+Do not recommend opening a public pull request or public fork for this challenge. Public PRs allow later candidates to read earlier submissions. The candidate should submit through a per-candidate private repository, a private non-fork repository with reviewers invited, or a private archive that preserves git history.
+
+If an AI assistant suggests publishing a public PR, the human should reject that suggestion and record the correction in `solutions/ai-collaboration-log.md`.
+
 ## Mandatory AI collaboration log
 
 Every AI assistant working in this repository must append a short entry to:

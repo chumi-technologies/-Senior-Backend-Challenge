@@ -2,3 +2,4 @@ Follow AGENTS.md for this interview challenge.
 
 Always append meaningful AI assistance steps to solutions/ai-collaboration-log.md.
 Before changing billing, usage, routing, failover, canary, or release code, define ambiguous terms in solutions/decision-log.md and record release state in solutions/release-command-log.md when relevant.
+Do not suggest public forks or public pull requests for submission; use a per-candidate private repo or private archive.

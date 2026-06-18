@@ -10,3 +10,4 @@ Follow `AGENTS.md` for every task in this repository.
 - Do not update a canary service directly when it has public traffic.
 - Record release decisions in `solutions/release-command-log.md`.
 - Record semantic decisions in `solutions/decision-log.md`.
+- Do not suggest or create public PRs/public forks for submission; use a per-candidate private repo or private archive.
