@@ -63,3 +63,89 @@ debit or double billing (`100 x 0.4 = 40` exactly).
 
 ### Remaining risks
 - Must prove provider balance and load-balancing weight are untouched.
+
+## 2026-06-20 14:45 — Release judgment for the interrupted rollout
+
+### User prompt / intent
+Decide how to ship the urgent label fix during a live Phase 1 public canary.
+
+### AI action
+Recorded rollout state (stable 99 / canary 1, canary has public traffic, Phase 1 unpromoted). Built
+a candidate-action decision table and a high-availability sequence.
+
+### Files inspected
+- ops/current-rollout-state.json, ops/urgent-phase2-ticket.md
+
+### Commands run
+- none (state read from ops JSON)
+
+### Assumptions
+- Phase 1 image B is unvalidated and modifies the same reporting code path.
+
+### Human corrections / decisions
+- AI first suggested "promote Phase 1 to ship faster." Human **rejected** — that promotes an
+  unvalidated change to all customers under deadline pressure. Corrected to: freeze Phase 1, drain
+  canary 1% → 0%, build Phase 2 from **stable image A**, validate at 0% then 1%, keep rollback =
+  `phase0-a17f3d2`.
+
+### Remaining risks
+- 60-minute deadline may force deferring promotion; holding at validated canary is acceptable.
+
+## 2026-06-20 15:05 — Surgical fix for the demographics race + characterization test
+
+### User prompt / intent
+Make the smallest safe code change and lock it with a test.
+
+### AI action
+Removed the `setTimeout(() => delayedUpdate(...), 2000)` and the now-unused `delayedUpdate` from
+`createAnalysis`; established the worker as the single writer of final demographics. Replaced the
+empty `bug-repro.spec.ts` scaffold with two characterization tests using in-memory fakes (no Mongo,
+no Nest DI). Added a minimal ts-jest config to make the suite runnable.
+
+### Files inspected / changed
+- apps/legacy-app/src/analysis/analysis.service.ts (changed)
+- apps/legacy-app/test/bug-repro.spec.ts (rewritten)
+- apps/legacy-app/jest.config.js (added), apps/legacy-app/package.json (jest devDeps)
+
+### Commands run
+- `nvm install 20`, `corepack prepare pnpm@8.15.0 --activate`, `pnpm install`
+- `pnpm --filter legacy-app test` (see solutions/test-evidence.md)
+
+### Assumptions
+- Adding jest/ts-jest is test infrastructure, not an application rewrite (the test script already
+  referenced jest).
+
+### Human corrections / decisions
+- AI first proposed adding a `version` field + optimistic locking to guard the delayed write. Human
+  **rejected**: this protects a write that should not exist. Corrected to deleting the racing write
+  entirely (smaller and fully removes the race).
+
+### Remaining risks
+- Preliminary record stays `PENDING` until the worker completes; consumers must treat
+  `confidence: 0.3` as preliminary (already the intended contract).
+
+## 2026-06-20 15:30 — Scale plan and final verification
+
+### User prompt / intent
+Produce the two-week scale plan and run the submission check.
+
+### AI action
+Wrote `scale-plan.md` (shard 5M rows into ~1,000 SQS shards, ~150–200 idempotent consumers,
+per-provider concurrency cap, DLQ, completion aggregator) and rejected the Rust/K8s rewrite. Ran
+`pnpm run verify:submission`.
+
+### Files inspected
+- apps/worker-service/src/queue-poller.ts, debug-payloads/, failed-records/
+
+### Commands run
+- `pnpm run verify:submission` (output in solutions/test-evidence.md)
+
+### Assumptions
+- Bottleneck is I/O-bound provider fan-out, not CPU.
+
+### Human corrections / decisions
+- Human **accepted** the horizontal fan-out plan and the explicit "do not rewrite in Rust / do not
+  migrate to K8s in two weeks" stance.
+
+### Remaining risks
+- Provider rate limits are the real ceiling; concurrency cap must be tuned against live limits.

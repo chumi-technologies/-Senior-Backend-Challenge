@@ -57,3 +57,19 @@
 - **Risk:** A careless change to a shared "balance" helper could move routing weights.
 - **Verification:** Tests asserting provider balance and load-balancing weight values are unchanged
   by the dashboard fix (see part1-billing-semantics.md §5).
+
+### 2026-06-20 15:05 — Code consistency bug is the demographics race, not billing
+
+- **Context:** Bug-repro ticket #4521 reports "data inconsistency / data overwrite." The repo has
+  no billing code; the actual defect is in `analysis.service.ts`.
+- **Decision:** Classify ticket #4521 as a **last-writer-wins race**: `createAnalysis` schedules a
+  `setTimeout` that re-persists stale *quick* demographics (confidence 0.3) ~2s later, clobbering
+  the worker's real `COMPLETED` result. Fix = remove the racing background re-write (see
+  refactor-plan.md). This is a code defect, distinct from the billing-label semantics above.
+- **Source of truth:** the worker pipeline owns final `demographics`; the request handler only
+  seeds preliminary values.
+- **Alternatives rejected:** Adding optimistic-locking/version gymnastics around a write that
+  should not exist at all.
+- **Risk:** Removing the timer must not drop the legitimate initial save (it does not — the initial
+  `saveJob` already persists the preliminary record).
+- **Verification:** Characterization test in `apps/legacy-app/test/bug-repro.spec.ts`.
