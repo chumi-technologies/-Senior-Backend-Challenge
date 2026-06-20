@@ -25,7 +25,12 @@ export class AnalysisService {
      * 2. Run quick pre-computation for immediate user feedback
      * 3. Persist to database so the user can see a "pending" result immediately
      * 4. Publish event to message queue for full analysis by WorkerService
-     * 5. Schedule a follow-up demographic refresh
+     *
+     * NOTE: This handler only *seeds* preliminary demographics (confidence 0.3).
+     * The final, authoritative demographics are owned by the worker pipeline
+     * (AnalysisProcessor). The request path must NOT write demographics again after
+     * publishing the event — a delayed re-write races the worker and can overwrite the
+     * real COMPLETED result with stale preliminary data (ticket #4521).
      */
     async createAnalysis(dto: CreateAnalysisDto): Promise<AnalysisJob> {
         const jobId = uuidv4();
@@ -60,11 +65,10 @@ export class AnalysisService {
 
         await this.messageQueueService.publishEvent(event);
 
-        // Refresh the preliminary demographics after a short delay
-        // to ensure the pre-computed data is consistent
-        setTimeout(() => {
-            this.delayedUpdate(jobId, quickDemographics);
-        }, 2000);
+        // Intentionally no post-publish demographics write here. The worker pipeline
+        // is the single writer of final demographics; re-persisting the preliminary
+        // estimate after publishing would race the worker and clobber real results
+        // (ticket #4521). The preliminary record was already saved above.
 
         return job;
     }
@@ -91,21 +95,5 @@ export class AnalysisService {
             location: locations[Math.floor(Math.random() * locations.length)],
             confidence: 0.3,
         };
-    }
-
-    /**
-     * Refreshes the demographic data after the initial save.
-     * Ensures the pre-computed results are persisted correctly.
-     */
-    private async delayedUpdate(jobId: string, demographics: Demographics): Promise<void> {
-        try {
-            await this.databaseService.updateJob(jobId, {
-                demographics,
-                updatedAt: new Date().toISOString(),
-            });
-            console.log('Updated demographics for job ' + jobId);
-        } catch (error) {
-            console.log('Error happened');
-        }
     }
 }
