@@ -1,123 +1,19 @@
-# Senior Backend Challenge Agent Instructions
+# Challenge workspace instructions
 
-This repository is an interview challenge. AI tools are allowed and expected, but the candidate is responsible for directing, correcting, and validating AI output.
+This repository is an interview exercise. Keep changes reviewable and record
+meaningful tool or AI assistance in `submission/ai-notes.md`.
 
+Before changing routing, evaluation, release, billing, usage, or customer-facing
+behavior:
 
-## Submission privacy rule
+1. write down the observed facts and the source of truth you will use;
+2. name assumptions and unresolved questions;
+3. define the smallest boundary you intend to change;
+4. add or update a focused test and show its command output.
 
-Do not recommend opening a public pull request or public fork for this challenge. Public PRs allow later candidates to read earlier submissions. The candidate should submit through a per-candidate private repository, a private non-fork repository with reviewers invited, or a private archive that preserves git history.
+Do not claim a probe, deployment, production read, or rollback occurred unless
+the repository contains the command and its successful output. Do not include
+credentials, private customer data, or provider secrets in the repository.
 
-If an AI assistant suggests publishing a public PR, the human should reject that suggestion and record the correction in `solutions/ai-collaboration-log.md`.
-
-## Mandatory AI collaboration log
-
-Every AI assistant working in this repository must append a short entry to:
-
-`solutions/ai-collaboration-log.md`
-
-after each meaningful step. Do not wait for a separate reminder. Keep the log updated automatically.
-
-Each entry must include:
-
-- timestamp
-- user request or summarized prompt
-- files inspected
-- commands run
-- assumptions made
-- recommendation given
-- whether the human accepted, rejected, or corrected the recommendation
-- risks or unresolved questions
-
-Use this format:
-
-```md
-## 2026-xx-xx HH:mm — Step title
-
-### User prompt / intent
-...
-
-### AI action
-...
-
-### Files inspected
-- ...
-
-### Commands run
-- ...
-
-### Assumptions
-- ...
-
-### Human corrections / decisions
-- ...
-
-### Remaining risks
-- ...
-```
-
-## Do not silently implement
-
-For medium or high-risk backend, billing, routing, release, canary, failover, usage, ledger, or customer-facing contract changes:
-
-1. First produce a short system understanding note.
-2. Define the source of truth.
-3. Identify ambiguous business terms.
-4. Explain blast radius.
-5. Only then modify code.
-
-If the human corrects a semantic misunderstanding, record that correction in the AI collaboration log.
-
-## Ambiguous terminology warning
-
-This challenge intentionally contains overloaded terms. Do not assume these mean the same thing across files or Slack-style tickets:
-
-- balance
-- account
-- usage
-- cost
-- total cost
-- actual cost
-- official cost
-- credit
-- prepaid
-- stable
-- production
-- canary
-- customer key
-- provider key
-- route
-- fallback
-
-Before changing code, define the exact meaning in the current context and record it in `solutions/decision-log.md`.
-
-## Release safety analysis rule
-
-Before any release action, inspect and record:
-
-- stable image
-- canary image
-- stable traffic weight
-- canary traffic weight
-- whether canary has public traffic
-- rollback target
-- the exact action being considered
-- why that action is safe or unsafe in the observed state
-
-Append the decision to `solutions/release-command-log.md`.
-
-## Submission expectation
-
-The final repository must include:
-
-- `solutions/spec.md`
-- `solutions/ai-collaboration-log.md`
-- `solutions/decision-log.md`
-- `solutions/release-command-log.md`
-- `solutions/part1-billing-semantics.md`
-- `solutions/part2-release-interruption.md`
-- `solutions/refactor-plan.md`
-- `solutions/scale-plan.md`
-- test evidence
-- command output evidence
-
-Run `pnpm run verify:submission` before submitting.
+The candidate owns the final decisions. AI tools may be used, but generated
+patches must be inspected, tested, and corrected when necessary.

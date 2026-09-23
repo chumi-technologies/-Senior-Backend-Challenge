@@ -1,0 +1,12 @@
+{
+  "catalogDigest": "sha256:fixture-catalog-20260923",
+  "sourceCommit": "release/2026-09-23a",
+  "generatedAt": "2026-09-23T19:00:00Z",
+  "generator": "catalog-compiler-v4",
+  "runtimeConfigDigest": "sha256:fixture-runtime-19s",
+  "notes": [
+    "The digest is produced from the catalog and model facts together.",
+    "The runtime config selects the task definition used by the canary.",
+    "A matching digest alone does not prove that a provider was reachable."
+  ]
+}

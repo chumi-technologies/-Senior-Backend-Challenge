@@ -1,0 +1,9 @@
+{
+  "train": "19t",
+  "source": "develop",
+  "stable": { "taskDefinition": "quotaflow-core:485", "trafficPercent": 90 },
+  "canary": { "taskDefinition": "quotaflow-core:487", "trafficPercent": 0, "publicTraffic": false },
+  "migration": { "id": "9817", "state": "pending", "writerVersions": ["487"] },
+  "catalogDigest": "sha256:unpublished-catalog-20260923",
+  "rollbackTarget": null
+}

@@ -1,0 +1,9 @@
+{
+  "train": "19s",
+  "source": "release/2026-09-23a",
+  "stable": { "taskDefinition": "quotaflow-core:485", "trafficPercent": 90 },
+  "canary": { "taskDefinition": "quotaflow-core:486", "trafficPercent": 10, "publicTraffic": true },
+  "migration": { "id": "9816", "state": "applied", "writerVersions": ["485", "486"] },
+  "catalogDigest": "sha256:fixture-catalog-20260923",
+  "rollbackTarget": "quotaflow-core:485"
+}
