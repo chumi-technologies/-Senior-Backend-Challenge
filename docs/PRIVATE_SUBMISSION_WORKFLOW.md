@@ -41,7 +41,7 @@ Candidate sends a compressed repo archive containing:
 
 - full source tree
 - `.git` directory and commit history
-- `solutions/` artifacts
+- `submission/` artifacts
 - test evidence and command output
 
 This is less convenient than PR review but avoids public answer leakage.
