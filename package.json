@@ -16,7 +16,8 @@
         "test": "pnpm --filter @senior-challenge/shared-types build && pnpm -r test",
         "lint": "pnpm -r lint",
         "verify:challenge": "tsx scripts/verify-challenge.ts",
-        "evaluate:replay": "tsx scripts/evaluate-replay.ts"
+        "evaluate:replay": "tsx scripts/evaluate-replay.ts",
+        "check:release": "tsx scripts/check-release-plan.ts"
     },
     "devDependencies": {
         "@types/jest": "29.5.14",

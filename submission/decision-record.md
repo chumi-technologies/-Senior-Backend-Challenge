@@ -123,3 +123,55 @@ questions. Organized by challenge slice.
 | e-003 | PASS | FAIL | FAIL | FAIL |
 | e-004 | FAIL | PASS | PASS | FAIL |
 | e-005 | FAIL | ABSTAIN | ABSTAIN | FAIL |
+
+---
+
+## Slice 3 — Release & CI Control
+
+### Source-of-truth choices
+- The generated artifact (`generated-artifacts.json`) is the authority for the
+  *published* catalog digest and source commit. A snapshot's `catalogDigest` is
+  trusted only when it matches the artifact.
+- A matching digest proves catalog+model-fact identity, **not** that a provider
+  was reachable (artifact note) — so digest match is necessary, not sufficient;
+  canary health is separate evidence.
+
+### Decision rules
+- **Promotion gate = four hard blockers** (all must pass to PROCEED):
+  1. `source` is a release branch (`release/*`), not `develop`.
+  2. `catalogDigest` matches the published artifact digest.
+  3. `migration.state === "applied"`.
+  4. `rollbackTarget` is non-null **and** its version is among the active
+     `writerVersions` (parse `quotaflow-core:485` → `485`).
+- **Safe changes while public canary ≠ 0:** only backward-compatible changes
+  both stable (485) and canary (486) can serve. No schema-breaking migrations,
+  credential-scope changes, or edits that invalidate the in-flight canary
+  comparison. (Runbook policy; not enforced by the script.)
+- **Rollback with an older writer running:** target version must be in
+  `writerVersions` so the still-running older writer remains compatible.
+- **Check script:** per-train PROCEED/WAIT with failing gates printed;
+  PROCEED → exit 0, any WAIT → exit 1 (CI gate). Logic in
+  `apps/legacy-app/src/release/release-gate.ts`; `scripts/check-release-plan.ts`
+  is the thin CLI. Not wired into `verify:challenge`.
+
+### Gating checks (per change type)
+- **Route/catalog change:** catalog digest recomputed and matches the artifact;
+  route-planner tests pass; probe/price freshness evidence present; no
+  credential-scope regressions.
+- **Evaluation change:** `rubricVersion` pinned; evaluator tests pass; report
+  regenerated and reviewed; runs offline (no network/LLM).
+
+### Evidence recorded
+- **Before promotion:** snapshot (task definitions + traffic split), digest-match
+  proof, migration state, canary health window, rollback target.
+- **After rollback:** traffic shift to the rollback target confirmed, active
+  writer versions, migration state, and any data written by the
+  rolled-back-from version flagged for reconciliation.
+
+### Outcomes
+| Train | Gate result | Decision |
+|---|---|---|
+| 19s | all four pass | PROCEED |
+| 19t | fails all four (develop source, unpublished digest, pending migration, null rollback) | WAIT |
+
+Check on both fixtures → exit 1 (19t must wait).

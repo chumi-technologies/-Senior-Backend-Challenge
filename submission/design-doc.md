@@ -116,15 +116,21 @@ Injection text in e-001 ("Ignore the rubric…") is ignored — matching is pure
 ### Design decisions (the runbook answers)
 - **REQUIRED (to answer)** — which train may proceed / must wait; safe changes while public canary ≠ 0; rollback-target choice with an older writer running; gating checks for route/catalog vs. evaluation changes; evidence before promotion and after rollback.
 - **REQUIRED** — Add `scripts/check-release-plan.ts` as an executable check.
-- **OPEN** — The actual rules/thresholds I apply to the evidence to reach each answer (e.g. which conditions are hard blockers).
-- **OPEN** — The check script's exact blocking rules and its output / exit-code behavior.
+- **DECIDED** — Promotion gate = four hard blockers (all must pass): (1) source is a release branch; (2) catalog digest matches the published artifact; (3) migration state is `applied`; (4) rollback target non-null **and** its version ∈ active `writerVersions`. → 19s proceeds, 19t waits (fails all four).
+- **DECIDED** — While public canary traffic ≠ 0, allow only backward-compatible changes both stable and canary can serve (runbook policy; not script-enforced).
+- **DECIDED** — Rollback target with an older writer running: must be non-null and its version (parse `quotaflow-core:485` → `485`) must be among `writerVersions`.
+- **DECIDED** — Separate gate checklists for route/catalog vs. evaluation changes (runbook content).
+- **DECIDED** — Evidence lists (before promotion / after rollback) per the recommendation in the decision record.
+- **DECIDED** — Check script: per-train PROCEED/WAIT with failing gates printed; PROCEED → exit 0, any WAIT/blocked → exit 1 (CI gate). On the fixtures this exits 1 (19t waits). Logic lives in `apps/legacy-app/src/release/` so jest can cover it; the script is a thin CLI. Not wired into `verify:challenge`.
 
 ### Tests → implement → verify
 - Assert the check script blocks 19t and the conditions I mark as blockers; run it and record exit status.
 
-### Deliverables (tentative locations)
+### Deliverables
 - `submission/release-runbook.md`
-- `scripts/check-release-plan.ts` (`tsx`)
+- `apps/legacy-app/src/release/release-gate.ts` (pure gate logic, jest-covered)
+- `apps/legacy-app/test/release-gate.spec.ts` (16 specs)
+- `scripts/check-release-plan.ts` (`tsx` CLI) + `check:release` package script
 
 ---
 
@@ -154,10 +160,12 @@ Each phase: **understand evidence → make decision → document it → test →
 - [x] Generate `evaluation-report.json` (all 5 → overall fail, per-criterion reasons); tests 20/20, full suite 45/45, exit 0
 
 ### Phase 3 — Release
-- [ ] Understand evidence (both snapshots + artifacts)
-- [ ] Decide blocking rules + script exit-code behavior
-- [ ] Document in `release-runbook.md`
-- [ ] Write test for check script, implement it, run and record exit status
+- [x] Understand evidence (both snapshots + artifacts; evidence table recorded)
+- [x] Decide blocking rules + script exit-code behavior (four hard blockers; PROCEED→0, any WAIT→1)
+- [x] Document in `release-runbook.md` (+ decision-record Slice 3)
+- [x] Write tests — 16 specs in `release-gate.spec.ts`; red on stub, then green
+- [x] Implement `release-gate.ts` + `check-release-plan.ts` (+ `check:release` script)
+- [x] Verify — 16/16 green; full suite 61/61, exit 0; `check:release` exits 1 (19t waits), 19s PROCEED
 
 ### Phase 4 — Submission
 - [ ] `decision-record.md` complete (assumptions, source-of-truth, rejected alternatives, open questions)
