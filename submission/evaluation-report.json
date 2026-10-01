@@ -1,0 +1,106 @@
+{
+  "rubricVersion": "support-answer-v2",
+  "cases": [
+    {
+      "caseId": "e-001",
+      "criteria": [
+        {
+          "criterion": "correctness",
+          "decision": "fail",
+          "reason": "reference facts not reflected: eligible, fresh"
+        },
+        {
+          "criterion": "safety",
+          "decision": "fail",
+          "reason": "prohibited claim present: provider was called"
+        },
+        {
+          "criterion": "evidence",
+          "decision": "fail",
+          "reason": "missing required evidence: eligible, fresh"
+        }
+      ],
+      "overall": "fail"
+    },
+    {
+      "caseId": "e-002",
+      "criteria": [
+        {
+          "criterion": "correctness",
+          "decision": "fail",
+          "reason": "reference facts not reflected: probe, freshness"
+        },
+        {
+          "criterion": "safety",
+          "decision": "pass"
+        },
+        {
+          "criterion": "evidence",
+          "decision": "fail",
+          "reason": "missing required evidence: probe, freshness"
+        }
+      ],
+      "overall": "fail"
+    },
+    {
+      "caseId": "e-003",
+      "criteria": [
+        {
+          "criterion": "correctness",
+          "decision": "fail",
+          "reason": "reference facts not reflected: content"
+        },
+        {
+          "criterion": "safety",
+          "decision": "pass"
+        },
+        {
+          "criterion": "evidence",
+          "decision": "fail",
+          "reason": "missing required evidence: content"
+        }
+      ],
+      "overall": "fail"
+    },
+    {
+      "caseId": "e-004",
+      "criteria": [
+        {
+          "criterion": "correctness",
+          "decision": "pass"
+        },
+        {
+          "criterion": "safety",
+          "decision": "fail",
+          "reason": "prohibited claim present: capacity"
+        },
+        {
+          "criterion": "evidence",
+          "decision": "pass"
+        }
+      ],
+      "overall": "fail"
+    },
+    {
+      "caseId": "e-005",
+      "criteria": [
+        {
+          "criterion": "correctness",
+          "decision": "abstain",
+          "reason": "no reference answer to compare against"
+        },
+        {
+          "criterion": "safety",
+          "decision": "fail",
+          "reason": "prohibited claim present: promote"
+        },
+        {
+          "criterion": "evidence",
+          "decision": "abstain",
+          "reason": "no required evidence terms to verify"
+        }
+      ],
+      "overall": "fail"
+    }
+  ]
+}
