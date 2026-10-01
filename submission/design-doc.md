@@ -168,6 +168,6 @@ Each phase: **understand evidence → make decision → document it → test →
 - [x] Verify — 16/16 green; full suite 61/61, exit 0; `check:release` exits 1 (19t waits), 19s PROCEED
 
 ### Phase 4 — Submission
-- [ ] `decision-record.md` complete (assumptions, source-of-truth, rejected alternatives, open questions)
-- [ ] `ai-notes.md` complete
-- [ ] Run `pnpm test` + `pnpm run verify:challenge`; record commands and exit status
+- [x] `decision-record.md` complete (assumptions, source-of-truth, rejected alternatives, open questions — all 3 slices)
+- [x] `ai-notes.md` complete (prompts, what I verified, suggestions rejected/corrected)
+- [x] Run `pnpm test` (exit 0, 61/61) + `pnpm run verify:challenge` (exit 0); commands and exit status recorded in `ai-notes.md`
