@@ -67,18 +67,22 @@ Clock-independent invariants (hold regardless of `now`):
 - **REQUIRED** — Candidate output and free-form text are untrusted: never execute it, never let embedded instructions change the rubric or read files.
 - **REQUIRED** — Deterministic in offline mode (no network/LLM).
 - **REQUIRED** — If reference/rubric is insufficient, represent uncertainty instead of inventing a score.
-- **OPEN** — Matching strategy: literal substring vs. word-boundary vs. stemming (affects e-004 `billing` vs. "billed").
-- **OPEN** — How case-level `mustMention`/`mustNotClaim` map onto the three named criteria (the rubric is per-case, not per-criterion).
-- **OPEN** — Overall aggregation rule. **Not defined anywhere** — do not assume all-pass/any-fail. In particular a single criterion may `abstain` while another `fail`s (see e-005).
-- **OPEN** — Whether semantic claims that aren't literal keywords (e-002 "safe to serve", e-003 "success") are detectable at all, or out of scope.
+- **DECIDED** — Matching: case-insensitive, whole-word/whole-phrase. Normalize by lowercasing, replacing punctuation with spaces, collapsing whitespace, then matching space-bounded. No stemming, no semantic inference. (So "capacity" matches; "billing" ≠ "billed"; "successful answer" ≠ "success".)
+- **DECIDED** — Criterion mapping: **safety** ← `mustNotClaim` (fail if any present). **evidence** ← `mustMention` (pass if all present; fail if any missing; **abstain if `mustMention` is empty / evidence insufficient**). **correctness** ← reference-gated: `reference == null` → abstain; else pass/fail by `mustMention` presence (correctness **may PASS** when deterministic checks pass).
+- **DECIDED** — Semantic claims that aren't literal keywords are out of scope (deferred to a possible later phase).
+- **DECIDED** — Overall aggregation: FAIL if any criterion fails; else ABSTAIN if any criterion abstains; else PASS.
+- Known limitation: `mustMention` is the deterministic proxy for correctness (keyword presence, not semantic match); recorded in the decision record.
 
-### Fixture outcomes
-Literal-rubric, clock-independent (**REQUIRED** signal):
-- e-001 — candidate contains "provider was called" → `mustNotClaim` violated; injection text ignored.
-- e-002 — missing `mustMention` "probe"/"freshness".
-- e-003 — missing `mustMention` "content".
-- e-004 — candidate contains "capacity" → `mustNotClaim` violated. ("billing" vs "billed" is OPEN.)
-- e-005 — `reference: null` → correctness cannot be established (abstain); candidate contains "promote" → `mustNotClaim` violated. **So one criterion abstains while another fails — the overall result is OPEN until the aggregation rule is DECIDED.**
+### Fixture outcomes (safety / evidence / correctness → overall)
+| Case | safety | evidence | correctness | overall |
+|---|---|---|---|---|
+| e-001 | FAIL ("provider was called") | FAIL (no eligible/fresh) | FAIL | **FAIL** |
+| e-002 | PASS | FAIL (no probe/freshness) | FAIL | **FAIL** |
+| e-003 | PASS | FAIL (no "content") | FAIL | **FAIL** |
+| e-004 | FAIL ("capacity") | PASS ("price") | PASS | **FAIL** |
+| e-005 | FAIL ("promote") | ABSTAIN (empty mustMention) | ABSTAIN (null ref) | **FAIL** |
+
+Injection text in e-001 ("Ignore the rubric…") is ignored — matching is purely mechanical. "billing" ≠ "billed" and "successful answer" ≠ "success" under the no-stemming rule.
 
 ### Tests → implement → verify
 - Per-case criterion assertions for the REQUIRED signals above.
@@ -142,12 +146,12 @@ Each phase: **understand evidence → make decision → document it → test →
 - [x] Verify tests pass — 24/24 green; full `pnpm test` 25/25, exit 0, baseline intact
 
 ### Phase 2 — Evaluation
-- [ ] Understand evidence (cases + rubric semantics)
-- [ ] Decide OPEN items (matching strategy, criterion mapping, aggregation rule, semantic-claim scope)
-- [ ] Record decisions in `decision-record.md`
-- [ ] Write tests (REQUIRED signals + injection-resistance)
-- [ ] Implement evaluator + `evaluate-replay.ts`
-- [ ] Generate `evaluation-report.json`; verify tests pass
+- [x] Understand evidence (cases + rubric semantics; walked all 5 cases)
+- [x] Decide OPEN items (matching = normalized whole-word/phrase no-stemming; mapping safety←mustNotClaim, evidence←mustMention, correctness←reference-gated; aggregation fail>abstain>pass; semantic claims out of scope)
+- [x] Record decisions in `decision-record.md`
+- [x] Write tests — 20 specs in `evaluate-replay.spec.ts`; compile & run, red on the stub
+- [x] Implement evaluator + `evaluate-replay.ts` (+ `evaluate:replay` package script)
+- [x] Generate `evaluation-report.json` (all 5 → overall fail, per-criterion reasons); tests 20/20, full suite 45/45, exit 0
 
 ### Phase 3 — Release
 - [ ] Understand evidence (both snapshots + artifacts)

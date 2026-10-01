@@ -15,7 +15,8 @@
         "start:all": "concurrently \"pnpm start:legacy\" \"pnpm start:worker\"",
         "test": "pnpm --filter @senior-challenge/shared-types build && pnpm -r test",
         "lint": "pnpm -r lint",
-        "verify:challenge": "tsx scripts/verify-challenge.ts"
+        "verify:challenge": "tsx scripts/verify-challenge.ts",
+        "evaluate:replay": "tsx scripts/evaluate-replay.ts"
     },
     "devDependencies": {
         "@types/jest": "29.5.14",
