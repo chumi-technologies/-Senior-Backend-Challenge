@@ -19,27 +19,31 @@ Nothing is DECIDED yet. File locations are **tentative** until confirmed.
 - **REQUIRED** — `priority` is an ordering hint only; model/surface/shape/region/health/freshness must all pass first (CONTRACT).
 - **REQUIRED** — Freshness values are policy config; clock must be injectable (CONTRACT).
 - **REQUIRED** — A request matches a cell only if its model is among the model names the cell declares (a cell may declare several).
-- **OPEN** — Any normalization/equivalence policy beyond exact name matching (if needed at all).
-- **OPEN** — The reference `now` used for freshness. Most freshness outcomes below depend on this.
-- **OPEN** — Stale probe → exclude? Stale price → exclude vs. select-and-flag? (Config has both; action is unspecified.)
-- **OPEN** — Which situations map to `retryable` vs `refused` (e.g. all candidates stale vs. no candidate ever possible).
-- **OPEN** — `thinkingShape` semantics when the request omits it; whether a cell with no `thinkingShapes` serves unshaped requests.
-- **OPEN** — Priority ordering direction (assumed lower = higher) and tie-breaking; attempt-plan length.
+- **DECIDED** — Exact name matching only; no normalization/equivalence layer (not needed by the fixtures).
+- **DECIDED** — `now` is injected as a function argument. Canonical value for the generated report: `2026-09-23T19:55:00Z` (latest observation in the catalog; no evidence is future-dated). Tests parameterize it.
+- **DECIDED** — Staleness is strict: a cell is stale when `age > maxAgeSeconds` (so `age == maxAge` is still fresh).
+- **DECIDED** — A stale probe makes a cell temporarily ineligible. A stale price also makes a cell temporarily ineligible. Missing `lastProbeAt`/`priceObservedAt` is treated as stale.
+- **DECIDED** — Two-stage classification. Structural gates = scope, model, surface+stream, region, thinkingShape. Temporal gates = health, probe freshness, price freshness. Empty structural set → `refused`. Non-empty structural set but all fail temporal gates → `retryable`. Otherwise → `selected`. (Health is temporary, not structural.)
+- **DECIDED** — `thinkingShape`: a request specifying a shape matches only cells that declare it; a request with no `thinkingShape` imposes no constraint (matches any cell).
+- **DECIDED** — Lower numeric `priority` = higher routing priority. Tie-break by cell `id` (ascending) for determinism.
+- **DECIDED** — Keep only the highest-priority cell per `credentialGroup`. `fallbackConsent: true` → attempt plan = one cell per independent credential group, ordered by priority. `fallbackConsent: false` → primary cell only.
 - Filtering order is an implementation detail (not a decision) unless it changes observable behavior.
 
-### Fixture outcomes
-Clock-independent (**REQUIRED** regardless of decisions):
-- `cell-blocked` never eligible (`health: blocked`).
-- `cell-v3` ineligible for `r-002` (`stream:false`, v3 has `nonStream:false`).
-- One cell max per `credentialGroup` in any attempt plan (v1 & v3 share `novaris-shared-1`).
-- `r-002` (`fallbackConsent:false`) → attempt plan cannot include a fallback.
-- `r-006` → not servable: needs `platform` scope **and** signed thinking; only signed cell is `byok:northwind` scope. (reason code = OPEN.)
-- BYOK requests (`r-003/004`) only match BYOK-scoped cells; platform requests never match BYOK cells.
+### Fixture outcomes (at canonical `now = 2026-09-23T19:55:00Z`, strict `>` staleness)
+| Req | Outcome | Why |
+|---|---|---|
+| r-001 | **selected** `cell-v3`, plan `[cell-v3]` | v1 & v3 fresh; dedup `novaris-shared-1` → v3 (priority 5 < 20); v2 fallback probe+price stale |
+| r-002 | **selected** `cell-v1`, plan `[cell-v1]` | v3 excluded (`nonStream:false`); `fallbackConsent:false` → primary only |
+| r-003 | **retryable** | BYOK cells probe-stale (19:30, 25 min old) |
+| r-004 | **retryable** | identical to r-003 |
+| r-005 | **retryable** | only eu-west-1 cell is v2; probe+price stale |
+| r-006 | **refused** | no platform cell declares `thinkingShape: signed` (structural mismatch) |
 
-Depends on OPEN decisions (clock + stale-price policy):
-- Whether `cell-v2` (older probe/price) is eligible for `r-005` (only eu-west-1 cell).
-- Whether `cell-byok` passes freshness for `r-003/004`.
-- Whether any request ends up `retryable` (all candidates stale) rather than `selected`.
+Clock-independent invariants (hold regardless of `now`):
+- `cell-blocked` never eligible (`health: blocked` is a temporal gate, but always fails here).
+- `cell-v3` structurally ineligible for `r-002` (`nonStream:false`).
+- One cell max per `credentialGroup` in any attempt plan.
+- `r-006` always `refused` (no platform cell supports signed thinking — structural).
 
 ### Tests → implement → verify
 - Fixture-driven cases for the REQUIRED outcomes above (clock-independent assertions).
@@ -125,17 +129,17 @@ Literal-rubric, clock-independent (**REQUIRED** signal):
 Each phase: **understand evidence → make decision → document it → test → implement → verify.**
 
 ### Phase 0 — Baseline
-- [ ] Run `pnpm install`
-- [ ] Run `pnpm test` (confirm baseline green)
-- [ ] Run `pnpm run verify:challenge`
+- [x] Run `pnpm install` (done in 13.1s, exit 0)
+- [x] Run `pnpm test` (shared-types builds; legacy-app 1/1 passed; worker-service no tests — green)
+- [x] Run `pnpm run verify:challenge` (all 7 checks ✅, exit 0)
 
 ### Phase 1 — Routing
-- [ ] Understand evidence (fixtures + CONTRACT re-read)
-- [ ] Decide OPEN items (clock, stale-price policy, retryable vs refused, thinkingShape, priority)
-- [ ] Record decisions in `decision-record.md`
-- [ ] Write tests (REQUIRED outcomes first, then clock-parameterized)
-- [ ] Implement `route-planner.ts`
-- [ ] Verify tests pass
+- [x] Understand evidence (fixtures + CONTRACT re-read; walked r-001; confirmed no explicit reference timestamp)
+- [x] Decide OPEN items (clock=19:55Z, strict `>`, stale probe+price ineligible, two-stage refused/retryable, thinkingShape, priority lower=higher + id tie-break, dedup/fallback rules)
+- [x] Record decisions in `decision-record.md`
+- [x] Write tests — 24 specs in `route-planner.spec.ts`; compile & run, red on the stub (`planRoute not implemented`)
+- [x] Implement `route-planner.ts` (two-stage filter → group dedup → priority/id sort → attempt plan)
+- [x] Verify tests pass — 24/24 green; full `pnpm test` 25/25, exit 0, baseline intact
 
 ### Phase 2 — Evaluation
 - [ ] Understand evidence (cases + rubric semantics)
